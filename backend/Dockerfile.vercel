@@ -1,7 +1,12 @@
 # Crawl4AI Web UI — backend container image for Vercel Functions
+# Vercel's container registry rejects large layer blobs (413 PAYLOAD_TOO_LARGE),
+# so the Python deps and each browser binary are installed in separate RUN
+# instructions to keep every layer well under the per-blob cap.
 FROM python:3.12-slim
 
 WORKDIR /app
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 libnss3 libnspr4 libdbus-1-3 libatk1.0-0 libatk-bridge2.0-0 \
@@ -10,8 +15,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements.txt
+
+# Heaviest dependencies first, in their own layer (~470MB uncompressed)
+RUN pip install --no-cache-dir playwright patchright litellm scipy \
+    && find /usr/local/lib/python3.12 -depth -type d -name __pycache__ -exec rm -rf {} +
+
+# Remaining dependencies (~260MB uncompressed)
 RUN pip install --no-cache-dir -r requirements.txt \
-    && python -m playwright install chromium
+    && find /usr/local/lib/python3.12 -depth -type d -name __pycache__ -exec rm -rf {} +
+
+# Browser binaries, one layer each (headless shell serves headless=True crawls)
+RUN python -m playwright install chromium-headless-shell
+RUN python -m playwright install chromium --no-shell
 
 COPY app/ app/
 
