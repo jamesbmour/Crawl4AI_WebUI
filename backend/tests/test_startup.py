@@ -33,3 +33,12 @@ def test_app_import_keeps_browser_stack_lazy(tmp_path: Path):
     )
 
     assert result.stdout.splitlines() == ["False", "False"]
+
+
+def test_vercel_image_installs_crawl4ai_chromium_binary():
+    """Crawl4AI uses full Chromium in headless mode, not headless-shell."""
+    backend_dir = Path(__file__).resolve().parents[1]
+    dockerfile = (backend_dir / "Dockerfile.vercel").read_text()
+
+    assert "playwright install chromium --no-shell" in dockerfile
+    assert "playwright install chromium-headless-shell" not in dockerfile

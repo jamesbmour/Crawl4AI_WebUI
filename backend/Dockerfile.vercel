@@ -28,9 +28,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && pip uninstall -y patchright \
     && find /usr/local/lib/python3.13 -depth -type d -name __pycache__ -exec rm -rf {} +
 
-# Vercel has no display server, so only the headless Chromium binary is useful.
-# Omitting the full browser keeps cold-start image pulls substantially smaller.
-RUN python -m playwright install chromium-headless-shell
+# Crawl4AI launches Playwright's full Chromium executable even for headless
+# crawls. --no-shell omits the separate headless-shell binary we do not use.
+RUN python -m playwright install chromium --no-shell
 
 COPY app/ app/
 
