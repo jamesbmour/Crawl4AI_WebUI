@@ -141,3 +141,13 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+.pytest_cache/
+
+# App data (jobs DB, artifacts, LLM keys)
+data/
+
