@@ -154,11 +154,25 @@ crawl4ai_webui/
 │   ├── package.json       # Node dependencies
 │   └── tailwind.config.js # Tailwind configuration
 ├── data/                  # Runtime data (SQLite, artifacts)
-├── run.sh                # Development and deployment scripts
+├── scripts/              # Executable management scripts (setup, dev, prod, test)
+├── run.sh                # Development and deployment scripts (legacy)
 └── Dockerfile            # Container build instructions
 ```
 
 ### Available Commands
+
+The project provides management scripts in two locations - use whichever you prefer:
+
+**Via `scripts/` directory (recommended):**
+
+| Command | Description |
+|---------|-------------|
+| `./scripts/setup.sh` | Initial environment setup |
+| `./scripts/dev.sh` | Start development servers |
+| `./scripts/prod.sh` | Start production server |
+| `./scripts/test.sh` | Run test suite |
+
+**Via legacy `run.sh`:**
 
 | Command | Description |
 |---------|-------------|
@@ -167,6 +181,8 @@ crawl4ai_webui/
 | `bash ./run.sh prod` | Start production server |
 | `bash ./run.sh test` | Run test suite |
 | `bash ./run.sh clean` | Clean build artifacts and dependencies |
+
+> **Note:** The `scripts/` directory also includes desktop launchers (`.desktop` files) for Linux users. See `scripts/README.md` for details.
 
 ### Backend Development
 
