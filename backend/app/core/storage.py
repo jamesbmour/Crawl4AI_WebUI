@@ -63,6 +63,12 @@ async def get_db() -> aiosqlite.Connection:
         ensure_dirs()
         _db = await aiosqlite.connect(DB_PATH)
         _db.row_factory = aiosqlite.Row
+        # WAL lets readers (job list/detail polling) proceed while a deep
+        # crawl is writing results; busy_timeout avoids "database is locked"
+        # errors under the write-per-page churn of long-running jobs.
+        await _db.execute("PRAGMA journal_mode=WAL")
+        await _db.execute("PRAGMA busy_timeout=5000")
+        await _db.execute("PRAGMA synchronous=NORMAL")
         await _db.executescript(_SCHEMA)
         await _db.commit()
     return _db
