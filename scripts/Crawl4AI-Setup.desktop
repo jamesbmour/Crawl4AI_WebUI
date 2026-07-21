@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Crawl4AI - Setup
+Comment=Set up Crawl4AI Studio development environment
+Exec=gnome-terminal -- bash -c "cd '/Users/james/Library/CloudStorage/GoogleDrive-jamesbrendamour3@gmail.com/My Drive/GitHub/crawl4ai_webui/scripts' && ./setup.sh; read -p 'Press Enter to close...'"
+Type=Application
+Terminal=false
+Icon=system-software-install
+Categories=Development;System;Setup;
+StartupNotify=true

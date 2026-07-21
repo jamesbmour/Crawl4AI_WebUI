@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Crawl4AI - Production Mode
+Comment=Start Crawl4AI Studio in production mode
+Exec=gnome-terminal -- bash -c "cd '/Users/james/Library/CloudStorage/GoogleDrive-jamesbrendamour3@gmail.com/My Drive/GitHub/crawl4ai_webui/scripts' && ./prod.sh; read -p 'Press Enter to close...'"
+Type=Application
+Terminal=false
+Icon=applications-internet
+Categories=Network;WebDevelopment;
+StartupNotify=true
