@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Loader2, Play, Save, Sparkles, Trash2 } from "lucide-react";
 import { api, prune } from "../lib/api";
-import { defaultConfig } from "../lib/config";
 import { ExtractionEditor, SchemaJsonEditor } from "../components/ExtractionEditor";
+import { useCrawlConfig } from "../components/useCrawlConfig";
 import { ErrorBanner, JobBar } from "../components/shared";
 import { JsonBlock } from "../components/ResultTabs";
 import { useJob } from "../components/useJob";
@@ -12,6 +12,7 @@ export default function ExtractionPage() {
   const [extraction, setExtraction] = useState<Record<string, any>>({ type: "css" });
   const [extracted, setExtracted] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [crawlConfig, , configReady] = useCrawlConfig();
   const job = useJob();
 
   // Schema generation
@@ -36,10 +37,10 @@ export default function ExtractionPage() {
   }, [job.status, job.results, job.jobId]);
 
   const test = async () => {
-    if (!testUrl.trim()) return;
+    if (!configReady || !testUrl.trim()) return;
     setError(null);
     setExtracted(null);
-    const config = { ...defaultConfig(), extraction };
+    const config = { ...crawlConfig, extraction };
     try {
       await job.start("/crawl", { url: testUrl.trim(), config: prune(config) ?? {} });
     } catch (e: any) {
@@ -98,7 +99,7 @@ export default function ExtractionPage() {
           onChange={(e) => setTestUrl(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !running && test()}
         />
-        <button className="btn-primary shrink-0" onClick={test} disabled={running || !testUrl.trim()}>
+        <button className="btn-primary shrink-0" onClick={test} disabled={!configReady || running || !testUrl.trim()}>
           {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
           Test
         </button>

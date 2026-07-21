@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Save, FolderOpen } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, FolderOpen, Save, Star } from "lucide-react";
 import { CONFIG_GROUPS, type CrawlConfig, type GroupId } from "../lib/config";
 import { Field } from "./Field";
 import { ExtractionEditor } from "./ExtractionEditor";
@@ -15,6 +15,8 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [profiles, setProfiles] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savingDefault, setSavingDefault] = useState(false);
+  const [defaultStatus, setDefaultStatus] = useState<"idle" | "saved" | "error">("idle");
 
   useEffect(() => {
     api.get("/profiles").then(setProfiles).catch(() => {});
@@ -47,11 +49,25 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
     onChange({ ...base, ...profile.config });
   };
 
+  const saveAsDefault = async () => {
+    setSavingDefault(true);
+    setDefaultStatus("idle");
+    try {
+      await api.put("/settings", { default_crawl_config: config });
+      setDefaultStatus("saved");
+      window.setTimeout(() => setDefaultStatus("idle"), 1800);
+    } catch {
+      setDefaultStatus("error");
+    } finally {
+      setSavingDefault(false);
+    }
+  };
+
   return (
     <div className="card divide-y divide-surface-border">
-      <div className="flex items-center justify-between px-4 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
         <h3 className="text-sm font-semibold text-zinc-200">Configuration</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {profiles.length > 0 && (
             <div className="flex items-center gap-1">
               <FolderOpen size={14} className="text-zinc-500" />
@@ -74,6 +90,10 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
           )}
           <button className="btn-ghost !px-2 !py-1 text-xs" onClick={saveProfile} disabled={saving}>
             <Save size={14} /> Save profile
+          </button>
+          <button className="btn-ghost !px-2 !py-1 text-xs" onClick={saveAsDefault} disabled={savingDefault}>
+            {defaultStatus === "saved" ? <Check size={14} className="text-green-400" /> : <Star size={14} />}
+            {defaultStatus === "saved" ? "Default saved" : defaultStatus === "error" ? "Save failed" : "Save as default"}
           </button>
         </div>
       </div>

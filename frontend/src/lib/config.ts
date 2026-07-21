@@ -9,6 +9,16 @@ export function defaultConfig(): CrawlConfig {
   return { browser: {}, page: {}, content: {}, markdown: {}, capture: {}, extraction: { type: "none" } };
 }
 
+export function normalizeConfig(config?: Partial<CrawlConfig> | null): CrawlConfig {
+  const base = defaultConfig();
+  if (!config) return base;
+  return {
+    ...base,
+    ...config,
+    extraction: { ...base.extraction, ...(config.extraction ?? {}) },
+  };
+}
+
 export interface FieldDef {
   key: string;
   label: string;
@@ -60,7 +70,7 @@ export const CONFIG_GROUPS: GroupDef[] = [
     title: "Page interaction",
     description: "Waiting, JavaScript, scrolling, sessions",
     fields: [
-      { key: "wait_until", label: "Wait until", type: "select", options: sel("domcontentloaded", "networkidle", "load", "commit") },
+      { key: "wait_until", label: "Wait until", type: "select", options: sel("domcontentloaded", "networkidle", "load", "commit"), help: "Browser lifecycle event that must fire before crawling continues; networkidle can be slow on pages with ongoing requests" },
       { key: "wait_for", label: "Wait for", type: "text", placeholder: "css:.loaded  or  js:() => window.ready", help: "CSS selector or JS predicate to wait for before extraction" },
       { key: "page_timeout", label: "Page timeout (ms)", type: "number", placeholder: "60000" },
       { key: "wait_for_timeout", label: "Wait-for timeout (ms)", type: "number" },
@@ -75,10 +85,10 @@ export const CONFIG_GROUPS: GroupDef[] = [
       { key: "virtual_scroll", label: "Virtual scroll (JSON)", type: "json", placeholder: '{"container_selector":"#feed","scroll_count":10,"scroll_by":"container_height","wait_after_scroll":0.5}', help: "For virtualized feeds (Twitter-style) where DOM is recycled" },
       { key: "magic", label: "Magic mode", type: "boolean", help: "Auto-handle overlays and popups" },
       { key: "remove_overlay_elements", label: "Remove overlays", type: "boolean" },
-      { key: "process_iframes", label: "Inline iframes", type: "boolean" },
+      { key: "process_iframes", label: "Inline iframes", type: "boolean", help: "Merge iframe content into the processed page before markdown and extraction run" },
       { key: "simulate_user", label: "Simulate user", type: "boolean", help: "Mouse movement simulation (anti-bot)" },
       { key: "override_navigator", label: "Override navigator", type: "boolean", help: "Patch navigator properties (anti-bot)" },
-      { key: "adjust_viewport_to_content", label: "Fit viewport to content", type: "boolean" },
+      { key: "adjust_viewport_to_content", label: "Fit viewport to content", type: "boolean", help: "Resize the browser viewport to the page content before capture; useful for full-page screenshots" },
       { key: "locale", label: "Locale", type: "text", placeholder: "en-US" },
       { key: "timezone_id", label: "Timezone", type: "text", placeholder: "America/New_York" },
       { key: "geolocation_latitude", label: "Geo latitude", type: "number", step: 0.0001 },
@@ -96,7 +106,7 @@ export const CONFIG_GROUPS: GroupDef[] = [
       { key: "excluded_selector", label: "Excluded selector", type: "text", placeholder: "#ads, .cookie-banner" },
       { key: "word_count_threshold", label: "Min words per block", type: "number", placeholder: "200" },
       { key: "only_text", label: "Text only", type: "boolean" },
-      { key: "keep_data_attributes", label: "Keep data-* attributes", type: "boolean" },
+      { key: "keep_data_attributes", label: "Keep data-* attributes", type: "boolean", help: "Preserve HTML data-* attributes in cleaned output for selectors or downstream processing" },
       { key: "remove_forms", label: "Remove forms", type: "boolean" },
       { key: "exclude_external_links", label: "Drop external links", type: "boolean" },
       { key: "exclude_internal_links", label: "Drop internal links", type: "boolean" },
@@ -104,8 +114,8 @@ export const CONFIG_GROUPS: GroupDef[] = [
       { key: "exclude_domains", label: "Excluded domains", type: "list", placeholder: "ads.com, tracker.io" },
       { key: "exclude_external_images", label: "Drop external images", type: "boolean" },
       { key: "exclude_all_images", label: "Drop all images", type: "boolean" },
-      { key: "image_score_threshold", label: "Image score threshold", type: "number" },
-      { key: "table_score_threshold", label: "Table score threshold", type: "number", placeholder: "7" },
+      { key: "image_score_threshold", label: "Image score threshold", type: "number", help: "Minimum Crawl4AI relevance score required to keep an image in the result" },
+      { key: "table_score_threshold", label: "Table score threshold", type: "number", placeholder: "7", help: "Minimum table quality score required before a table is included in processed content" },
       { key: "check_robots_txt", label: "Respect robots.txt", type: "boolean" },
     ],
   },
@@ -145,14 +155,14 @@ export const CONFIG_GROUPS: GroupDef[] = [
     title: "Capture & cache",
     description: "Screenshot, PDF, MHTML, network, SSL, caching",
     fields: [
-      { key: "cache_mode", label: "Cache mode", type: "select", options: sel("bypass", "enabled", "disabled", "read_only", "write_only") },
+      { key: "cache_mode", label: "Cache mode", type: "select", options: sel("bypass", "enabled", "disabled", "read_only", "write_only"), help: "Controls whether Crawl4AI reads cached pages, writes new cache entries, does both, or bypasses the cache" },
       { key: "screenshot", label: "Screenshot", type: "boolean" },
       { key: "screenshot_wait_for", label: "Screenshot delay (s)", type: "number", step: 0.1, showIf: (g) => !!g.screenshot },
       { key: "pdf", label: "PDF export", type: "boolean" },
-      { key: "capture_mhtml", label: "MHTML snapshot", type: "boolean" },
-      { key: "capture_network_requests", label: "Capture network requests", type: "boolean" },
-      { key: "capture_console_messages", label: "Capture console messages", type: "boolean" },
-      { key: "fetch_ssl_certificate", label: "Fetch SSL certificate", type: "boolean" },
+      { key: "capture_mhtml", label: "MHTML snapshot", type: "boolean", help: "Save the page and its resources as a single browser archive (.mhtml)" },
+      { key: "capture_network_requests", label: "Capture network requests", type: "boolean", help: "Record requests made by the page for debugging APIs, assets, and failed loads" },
+      { key: "capture_console_messages", label: "Capture console messages", type: "boolean", help: "Include browser console logs, warnings, and errors in the crawl artifacts" },
+      { key: "fetch_ssl_certificate", label: "Fetch SSL certificate", type: "boolean", help: "Collect TLS certificate metadata for HTTPS pages" },
     ],
   },
 ];

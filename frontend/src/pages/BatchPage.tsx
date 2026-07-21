@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Play } from "lucide-react";
 import { api, prune, type SlimResult } from "../lib/api";
-import { defaultConfig, type CrawlConfig } from "../lib/config";
 import { ConfigPanel } from "../components/ConfigPanel";
+import { useCrawlConfig } from "../components/useCrawlConfig";
 import { ResultTabs } from "../components/ResultTabs";
 import { ErrorBanner, JobBar, ResultsTable } from "../components/shared";
 import { useJob } from "../components/useJob";
 
 export default function BatchPage() {
   const [urlText, setUrlText] = useState("");
-  const [config, setConfig] = useState<CrawlConfig>(defaultConfig());
+  const [config, setConfig, configReady] = useCrawlConfig();
   const [dispatcher, setDispatcher] = useState<Record<string, any>>({ type: "memory_adaptive" });
   const [rateLimit, setRateLimit] = useState<Record<string, any>>({ enabled: false });
   const [selected, setSelected] = useState<SlimResult | null>(null);
@@ -39,7 +39,7 @@ export default function BatchPage() {
     .filter(Boolean);
 
   const run = async () => {
-    if (!urls.length) return;
+    if (!configReady || !urls.length) return;
     setStartError(null);
     setSelected(null);
     setDetail(null);
@@ -151,7 +151,7 @@ export default function BatchPage() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button className="btn-primary" onClick={run} disabled={running || !urls.length}>
+        <button className="btn-primary" onClick={run} disabled={!configReady || running || !urls.length}>
           {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
           Crawl {urls.length || ""} URL{urls.length === 1 ? "" : "s"}
         </button>

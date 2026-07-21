@@ -272,3 +272,4 @@ class SettingsIn(BaseModel):
     llm_base_url: Optional[str] = None
     llm_temperature: Optional[float] = None
     llm_max_tokens: Optional[int] = None
+    default_crawl_config: Optional[CrawlConfigPayload] = None

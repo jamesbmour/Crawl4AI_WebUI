@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { Play, Loader2 } from "lucide-react";
 import { api, prune } from "../lib/api";
-import { defaultConfig, type CrawlConfig } from "../lib/config";
 import { ConfigPanel } from "../components/ConfigPanel";
+import { useCrawlConfig } from "../components/useCrawlConfig";
 import { ResultTabs } from "../components/ResultTabs";
 import { ErrorBanner, JobBar } from "../components/shared";
 import { useJob } from "../components/useJob";
 
 export default function ScrapePage() {
   const [url, setUrl] = useState("https://docs.crawl4ai.com/");
-  const [config, setConfig] = useState<CrawlConfig>(defaultConfig());
+  const [config, setConfig, configReady] = useCrawlConfig();
   const [fullResult, setFullResult] = useState<any>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const job = useJob();
@@ -22,7 +22,7 @@ export default function ScrapePage() {
   }, [job.results, job.jobId, fullResult]);
 
   const run = async () => {
-    if (!url.trim()) return;
+    if (!configReady || !url.trim()) return;
     setStartError(null);
     setFullResult(null);
     try {
@@ -53,7 +53,7 @@ export default function ScrapePage() {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey || !running)) run();
           }}
         />
-        <button className="btn-primary shrink-0" onClick={run} disabled={running || !url.trim()}>
+        <button className="btn-primary shrink-0" onClick={run} disabled={!configReady || running || !url.trim()}>
           {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
           Run
         </button>

@@ -50,6 +50,25 @@ async def test_settings_roundtrip(client):
 
 
 @pytest.mark.asyncio
+async def test_default_crawl_config_roundtrip(client):
+    config = {
+        "browser": {"enable_stealth": True},
+        "page": {"wait_until": "networkidle"},
+        "capture": {"screenshot": True},
+    }
+    r = await client.put("/api/settings", json={"default_crawl_config": config})
+    assert r.status_code == 200
+    saved = r.json()["default_crawl_config"]
+    assert saved["browser"]["enable_stealth"] is True
+    assert saved["page"]["wait_until"] == "networkidle"
+    assert saved["capture"]["screenshot"] is True
+
+    r = await client.get("/api/settings")
+    assert r.status_code == 200
+    assert r.json()["default_crawl_config"] == saved
+
+
+@pytest.mark.asyncio
 async def test_schema_crud(client):
     payload = {
         "name": "products",

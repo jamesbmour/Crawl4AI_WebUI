@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { CircleHelp } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
 import { json as jsonLang } from "@codemirror/lang-json";
@@ -15,13 +16,15 @@ export function Field({ def, value, onChange }: Props) {
   switch (def.type) {
     case "boolean":
       return (
-        <label className="flex items-center justify-between gap-3 py-1.5 cursor-pointer group">
-          <span className="text-sm text-zinc-300 group-hover:text-zinc-100" title={def.help}>
+        <div className="flex items-center justify-between gap-3 py-1.5 group">
+          <span className="inline-flex items-center text-sm text-zinc-300 group-hover:text-zinc-100">
             {def.label}
+            {def.help && <HelpTooltip label={def.label} text={def.help} />}
           </span>
           <button
             type="button"
             role="switch"
+            aria-label={def.label}
             aria-checked={!!value}
             onClick={() => onChange(value ? undefined : true)}
             className={`relative h-5 w-9 rounded-full transition-colors shrink-0 ${
@@ -34,7 +37,7 @@ export function Field({ def, value, onChange }: Props) {
               }`}
             />
           </button>
-        </label>
+        </div>
       );
     case "number":
       return (
@@ -130,12 +133,35 @@ export function Field({ def, value, onChange }: Props) {
 function Wrap({ def, children }: { def: FieldDef; children: React.ReactNode }) {
   return (
     <div className="py-1.5">
-      <label className="label" title={def.help}>
+      <div className="label flex items-center">
         {def.label}
-        {def.help && <span className="ml-1 text-zinc-600" title={def.help}>ⓘ</span>}
-      </label>
+        {def.help && <HelpTooltip label={def.label} text={def.help} />}
+      </div>
       {children}
     </div>
+  );
+}
+
+function HelpTooltip({ label, text }: { label: string; text: string }) {
+  const tooltipId = useId();
+  return (
+    <span className="relative ml-1 inline-flex group/tooltip">
+      <button
+        type="button"
+        className="rounded-sm text-zinc-500 hover:text-zinc-200 focus:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-accent"
+        aria-label={`Help for ${label}`}
+        aria-describedby={tooltipId}
+      >
+        <CircleHelp size={13} aria-hidden="true" />
+      </button>
+      <span
+        id={tooltipId}
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-64 rounded-lg border border-surface-border bg-zinc-950 px-3 py-2 text-left text-xs font-normal leading-relaxed text-zinc-200 opacity-0 shadow-xl transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
   );
 }
 

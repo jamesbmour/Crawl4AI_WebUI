@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Loader2, Play, Plus, Trash2 } from "lucide-react";
 import { api, prune, type SlimResult } from "../lib/api";
-import { defaultConfig, type CrawlConfig } from "../lib/config";
 import { ConfigPanel } from "../components/ConfigPanel";
+import { useCrawlConfig } from "../components/useCrawlConfig";
 import { ResultTabs } from "../components/ResultTabs";
 import { ErrorBanner, JobBar, ResultsTable } from "../components/shared";
 import { useJob } from "../components/useJob";
@@ -36,7 +36,7 @@ export default function DeepCrawlPage() {
   const [scoreThreshold, setScoreThreshold] = useState<string>("");
   const [keywords, setKeywords] = useState("");
   const [filters, setFilters] = useState<FilterRow[]>([]);
-  const [config, setConfig] = useState<CrawlConfig>(defaultConfig());
+  const [config, setConfig, configReady] = useCrawlConfig();
   const [selected, setSelected] = useState<SlimResult | null>(null);
   const [detail, setDetail] = useState<any>(null);
   const [startError, setStartError] = useState<string | null>(null);
@@ -56,7 +56,7 @@ export default function DeepCrawlPage() {
       .filter(Boolean);
 
   const run = async () => {
-    if (!url.trim()) return;
+    if (!configReady || !url.trim()) return;
     setStartError(null);
     setSelected(null);
     setDetail(null);
@@ -107,7 +107,7 @@ export default function DeepCrawlPage() {
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && !running && run()}
         />
-        <button className="btn-primary shrink-0" onClick={run} disabled={running || !url.trim()}>
+        <button className="btn-primary shrink-0" onClick={run} disabled={!configReady || running || !url.trim()}>
           {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
           Crawl
         </button>
