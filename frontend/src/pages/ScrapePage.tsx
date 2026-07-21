@@ -8,7 +8,7 @@ import { ErrorBanner, JobBar } from "../components/shared";
 import { useJob } from "../components/useJob";
 
 export default function ScrapePage() {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState("https://docs.crawl4ai.com/");
   const [config, setConfig] = useState<CrawlConfig>(defaultConfig());
   const [fullResult, setFullResult] = useState<any>(null);
   const [startError, setStartError] = useState<string | null>(null);
