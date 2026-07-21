@@ -1,0 +1,5 @@
+crawl4ai>=0.7.6,<0.8
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+aiosqlite>=0.20
