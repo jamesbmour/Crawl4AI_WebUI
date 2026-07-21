@@ -6,7 +6,34 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
-DATA_DIR = Path(os.environ.get("C4AI_WEBUI_DATA", Path(__file__).resolve().parents[3] / "data"))
+def _resolve_data_dir() -> Path:
+    """Pick a writable data directory.
+
+    Honors C4AI_WEBUI_DATA when set and writable. Falls back to the repo-local
+    ./data for local runs, and finally to /tmp on read-only container
+    filesystems (e.g. Vercel serverless, where only /tmp is writable).
+    """
+    candidates = []
+    env = os.environ.get("C4AI_WEBUI_DATA")
+    if env:
+        candidates.append(Path(env))
+    candidates.append(Path(__file__).resolve().parents[3] / "data")
+    candidates.append(Path("/tmp/c4ai-webui-data"))
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write_test"
+            probe.touch()
+            probe.unlink()
+            return candidate
+        except OSError:
+            continue
+    # Last resort: return /tmp path even if the probe failed; ensure_dirs will surface any error.
+    return Path("/tmp/c4ai-webui-data")
+
+
+DATA_DIR = _resolve_data_dir()
 ARTIFACTS_DIR = DATA_DIR / "artifacts"
 SETTINGS_PATH = DATA_DIR / "settings.json"
 DB_PATH = DATA_DIR / "app.db"
