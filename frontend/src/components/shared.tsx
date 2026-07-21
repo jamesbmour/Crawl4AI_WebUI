@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Loader2, XCircle } from "lucide-react";
+import { Loader2, Square, XCircle } from "lucide-react";
 import type { SlimResult } from "../lib/api";
 import type { JobState } from "./useJob";
 
@@ -30,7 +30,7 @@ export function ErrorBanner({ message }: { message: string | null }) {
   );
 }
 
-export function JobBar({ job, onCancel }: { job: JobState; onCancel?: () => void }) {
+export function JobBar({ job, onCancel }: { job: JobState; onCancel?: () => void | Promise<void> }) {
   if (job.status === "idle") return null;
   return (
     <div className="flex items-center gap-3 text-sm">
@@ -41,9 +41,15 @@ export function JobBar({ job, onCancel }: { job: JobState; onCancel?: () => void
           {job.results.length}/{job.total}
         </span>
       )}
-      {job.status === "running" && onCancel && (
-        <button className="btn-ghost !py-0.5 !px-2 text-xs text-red-400" onClick={onCancel}>
-          Cancel
+      {(job.status === "queued" || job.status === "running") && onCancel && (
+        <button
+          className="btn-secondary !py-1 !px-2.5 text-xs text-red-300 border-red-900/70 hover:border-red-700 hover:bg-red-950/40"
+          onClick={onCancel}
+          disabled={job.stopping}
+          aria-label={job.stopping ? "Stopping crawl" : "Stop crawl"}
+        >
+          {job.stopping ? <Loader2 size={12} className="animate-spin" /> : <Square size={11} fill="currentColor" />}
+          {job.stopping ? "Stopping…" : "Stop crawl"}
         </button>
       )}
       {job.jobId && (

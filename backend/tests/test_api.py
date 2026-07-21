@@ -1,4 +1,5 @@
 """API smoke tests using the ASGI transport (no browser launched)."""
+import asyncio
 import os
 import tempfile
 
@@ -122,3 +123,30 @@ async def test_jobs_list(client):
     r = await client.get("/api/jobs")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_cancel_running_job(client):
+    from app.core import jobs, storage
+
+    started = asyncio.Event()
+
+    async def slow_runner(job_id, publish):
+        started.set()
+        await asyncio.Event().wait()
+
+    job_id = await jobs.start_job("test", {}, slow_runner)
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    r = await client.post(f"/api/jobs/{job_id}/cancel")
+    assert r.status_code == 200
+    assert r.json() == {"ok": True}
+
+    for _ in range(20):
+        job = await storage.get_job(job_id)
+        if job and job["status"] == "cancelled":
+            break
+        await asyncio.sleep(0.01)
+
+    assert job["status"] == "cancelled"
+    assert job["finished_at"] is not None

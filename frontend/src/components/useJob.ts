@@ -9,6 +9,7 @@ export interface JobState {
   results: SlimResult[];
   total: number | null;
   stats: Record<string, unknown> | null;
+  stopping: boolean;
 }
 
 const initial: JobState = {
@@ -19,6 +20,7 @@ const initial: JobState = {
   results: [],
   total: null,
   stats: null,
+  stopping: false,
 };
 
 /** Start jobs and stream their events into React state. */
@@ -36,6 +38,7 @@ export function useJob() {
         const next = { ...prev };
         if (event.type === "status" && event.status) {
           next.status = event.status as JobState["status"];
+          next.stopping = false;
           if (event.error) next.error = event.error;
         } else if (event.type === "progress" && event.message) {
           next.progress = event.message;
@@ -64,10 +67,12 @@ export function useJob() {
 
   const cancel = useCallback(async () => {
     if (state.jobId) {
+      setState((prev) => ({ ...prev, stopping: true, progress: "Stopping crawl…" }));
       try {
         await api.post(`/jobs/${state.jobId}/cancel`);
       } catch {
         /* already finished */
+        setState((prev) => ({ ...prev, stopping: false }));
       }
     }
   }, [state.jobId]);
