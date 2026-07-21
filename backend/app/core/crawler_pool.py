@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from crawl4ai import AsyncWebCrawler
+if TYPE_CHECKING:
+    from crawl4ai import AsyncWebCrawler
 
 from ..models.schemas import BrowserOptions
 from .mapping import browser_config_signature, build_browser_config
@@ -22,6 +23,8 @@ _lock = asyncio.Lock()
 
 
 async def get_crawler(opts: Optional[BrowserOptions] = None) -> AsyncWebCrawler:
+    from crawl4ai import AsyncWebCrawler
+
     opts = opts or BrowserOptions()
     key = browser_config_signature(opts)
     async with _lock:

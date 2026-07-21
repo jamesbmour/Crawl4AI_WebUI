@@ -16,19 +16,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt requirements.txt
 
-# Heaviest dependencies first, in their own layer (~470MB uncompressed)
-RUN pip install --no-cache-dir playwright patchright litellm scipy \
+# Heaviest dependencies first, in their own layer.
+RUN pip install --no-cache-dir playwright litellm scipy \
     && find /usr/local/lib/python3.13 -depth -type d -name __pycache__ -exec rm -rf {} +
 
-# Remaining dependencies (~260MB uncompressed)
+# Crawl4AI declares Patchright for its optional undetected-browser adapter.
+# This UI does not expose that adapter, and Crawl4AI gracefully falls back when
+# it is absent. Install and remove it in the same layer so it never enters the
+# runtime image (the regular Playwright stealth option remains available).
 RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y patchright \
     && find /usr/local/lib/python3.13 -depth -type d -name __pycache__ -exec rm -rf {} +
 
-# Browser binaries, one layer each (headless shell serves headless=True crawls)
+# Vercel has no display server, so only the headless Chromium binary is useful.
+# Omitting the full browser keeps cold-start image pulls substantially smaller.
 RUN python -m playwright install chromium-headless-shell
-RUN python -m playwright install chromium --no-shell
 
 COPY app/ app/
+
+# Keep startup deterministic on Vercel's read-only root filesystem. The app's
+# lightweight API path is precompiled; Crawl4AI itself remains lazy-loaded by
+# crawl requests instead of delaying health/library endpoints.
+RUN python -m compileall -q app
 
 # Vercel serverless containers have a read-only rootfs; only /tmp is writable.
 # Both our app data AND crawl4ai's own home dir (which it creates at import time

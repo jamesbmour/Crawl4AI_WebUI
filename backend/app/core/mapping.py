@@ -6,41 +6,17 @@ defaults apply otherwise.
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from crawl4ai import (
-    BM25ContentFilter,
-    BrowserConfig,
-    CacheMode,
-    CrawlerRunConfig,
-    DefaultMarkdownGenerator,
-    GeolocationConfig,
-    JsonCssExtractionStrategy,
-    JsonXPathExtractionStrategy,
-    LLMConfig,
-    LLMContentFilter,
-    LLMExtractionStrategy,
-    PruningContentFilter,
-    RegexExtractionStrategy,
-    SeedingConfig,
-    VirtualScrollConfig,
-)
-from crawl4ai import (
-    BFSDeepCrawlStrategy,
-    BestFirstCrawlingStrategy,
-    ContentTypeFilter,
-    DFSDeepCrawlStrategy,
-    DomainFilter,
-    FilterChain,
-    KeywordRelevanceScorer,
-    MemoryAdaptiveDispatcher,
-    RateLimiter,
-    SEOFilter,
-    SemaphoreDispatcher,
-    URLPatternFilter,
-)
-from crawl4ai.adaptive_crawler import AdaptiveConfig
-from crawl4ai.deep_crawling.filters import ContentRelevanceFilter
+if TYPE_CHECKING:
+    from crawl4ai import (
+        BrowserConfig,
+        CrawlerRunConfig,
+        DefaultMarkdownGenerator,
+        LLMConfig,
+        SeedingConfig,
+    )
+    from crawl4ai.adaptive_crawler import AdaptiveConfig
 
 from ..models.schemas import (
     AdaptiveRequest,
@@ -72,6 +48,8 @@ def _set_if(kwargs: dict[str, Any], key: str, value: Any) -> None:
 # ---------------------------------------------------------------------------
 
 def build_browser_config(opts: BrowserOptions) -> BrowserConfig:
+    from crawl4ai import BrowserConfig
+
     kwargs: dict[str, Any] = {}
     _set_if(kwargs, "browser_type", opts.browser_type)
     _set_if(kwargs, "headless", opts.headless)
@@ -115,18 +93,24 @@ def build_markdown_generator(
     content_filter = None
     filter_kind = opts.content_filter or "none"
     if filter_kind == "pruning":
+        from crawl4ai import PruningContentFilter
+
         kwargs: dict[str, Any] = {}
         _set_if(kwargs, "threshold", opts.pruning_threshold)
         _set_if(kwargs, "threshold_type", opts.pruning_threshold_type)
         _set_if(kwargs, "min_word_threshold", opts.pruning_min_word_threshold)
         content_filter = PruningContentFilter(**kwargs)
     elif filter_kind == "bm25":
+        from crawl4ai import BM25ContentFilter
+
         if not opts.bm25_query:
             raise MappingError("BM25 content filter requires a query")
         kwargs = {"user_query": opts.bm25_query}
         _set_if(kwargs, "bm25_threshold", opts.bm25_threshold)
         content_filter = BM25ContentFilter(**kwargs)
     elif filter_kind == "llm":
+        from crawl4ai import LLMContentFilter
+
         if llm_config is None:
             raise MappingError("LLM content filter requires an LLM provider (Settings)")
         content_filter = LLMContentFilter(
@@ -151,6 +135,8 @@ def build_markdown_generator(
         gen_kwargs["content_source"] = opts.content_source
     if not gen_kwargs:
         return None  # let crawl4ai use its default generator
+    from crawl4ai import DefaultMarkdownGenerator
+
     return DefaultMarkdownGenerator(**gen_kwargs)
 
 
@@ -158,31 +144,57 @@ def build_markdown_generator(
 # Extraction strategies
 # ---------------------------------------------------------------------------
 
-_REGEX_BUILTIN_MAP = {
-    "email": RegexExtractionStrategy.Email,
-    "phone_intl": RegexExtractionStrategy.PhoneIntl,
-    "phone_us": RegexExtractionStrategy.PhoneUS,
-    "url": RegexExtractionStrategy.Url,
-    "ipv4": RegexExtractionStrategy.IPv4,
-    "ipv6": RegexExtractionStrategy.IPv6,
-    "uuid": RegexExtractionStrategy.Uuid,
-    "currency": RegexExtractionStrategy.Currency,
-    "percentage": RegexExtractionStrategy.Percentage,
-    "number": RegexExtractionStrategy.Number,
-    "date_iso": RegexExtractionStrategy.DateIso,
-    "date_us": RegexExtractionStrategy.DateUS,
-    "time_24h": RegexExtractionStrategy.Time24h,
-    "postal_us": RegexExtractionStrategy.PostalUS,
-    "postal_uk": RegexExtractionStrategy.PostalUK,
-    "html_color_hex": RegexExtractionStrategy.HexColor,
-    "twitter_handle": RegexExtractionStrategy.TwitterHandle,
-    "hashtag": RegexExtractionStrategy.Hashtag,
-    "mac_addr": RegexExtractionStrategy.MacAddr,
-    "iban": RegexExtractionStrategy.Iban,
-    "credit_card": RegexExtractionStrategy.CreditCard,
-}
+REGEX_BUILTIN_KEYS = [
+    "email",
+    "phone_intl",
+    "phone_us",
+    "url",
+    "ipv4",
+    "ipv6",
+    "uuid",
+    "currency",
+    "percentage",
+    "number",
+    "date_iso",
+    "date_us",
+    "time_24h",
+    "postal_us",
+    "postal_uk",
+    "html_color_hex",
+    "twitter_handle",
+    "hashtag",
+    "mac_addr",
+    "iban",
+    "credit_card",
+]
 
-REGEX_BUILTIN_KEYS = list(_REGEX_BUILTIN_MAP.keys())
+
+def _regex_builtin_map() -> dict[str, Any]:
+    from crawl4ai import RegexExtractionStrategy
+
+    return {
+        "email": RegexExtractionStrategy.Email,
+        "phone_intl": RegexExtractionStrategy.PhoneIntl,
+        "phone_us": RegexExtractionStrategy.PhoneUS,
+        "url": RegexExtractionStrategy.Url,
+        "ipv4": RegexExtractionStrategy.IPv4,
+        "ipv6": RegexExtractionStrategy.IPv6,
+        "uuid": RegexExtractionStrategy.Uuid,
+        "currency": RegexExtractionStrategy.Currency,
+        "percentage": RegexExtractionStrategy.Percentage,
+        "number": RegexExtractionStrategy.Number,
+        "date_iso": RegexExtractionStrategy.DateIso,
+        "date_us": RegexExtractionStrategy.DateUS,
+        "time_24h": RegexExtractionStrategy.Time24h,
+        "postal_us": RegexExtractionStrategy.PostalUS,
+        "postal_uk": RegexExtractionStrategy.PostalUK,
+        "html_color_hex": RegexExtractionStrategy.HexColor,
+        "twitter_handle": RegexExtractionStrategy.TwitterHandle,
+        "hashtag": RegexExtractionStrategy.Hashtag,
+        "mac_addr": RegexExtractionStrategy.MacAddr,
+        "iban": RegexExtractionStrategy.Iban,
+        "credit_card": RegexExtractionStrategy.CreditCard,
+    }
 
 
 def build_extraction_strategy(
@@ -196,6 +208,8 @@ def build_extraction_strategy(
         return None
 
     if kind in ("css", "xpath"):
+        from crawl4ai import JsonCssExtractionStrategy, JsonXPathExtractionStrategy
+
         schema = resolved_schema or opts.schema_json
         if not schema:
             raise MappingError(f"{kind} extraction requires a schema")
@@ -203,9 +217,12 @@ def build_extraction_strategy(
         return cls(schema)
 
     if kind == "regex":
+        from crawl4ai import RegexExtractionStrategy
+
+        regex_builtin_map = _regex_builtin_map()
         pattern = RegexExtractionStrategy.Nothing
         for key in opts.regex_builtin or []:
-            flag = _REGEX_BUILTIN_MAP.get(key)
+            flag = regex_builtin_map.get(key)
             if flag is None:
                 raise MappingError(f"Unknown builtin regex pattern: {key}")
             pattern |= flag
@@ -215,6 +232,8 @@ def build_extraction_strategy(
         return RegexExtractionStrategy(pattern=pattern, custom=custom)
 
     if kind == "llm":
+        from crawl4ai import LLMExtractionStrategy
+
         if llm_config is None:
             raise MappingError("LLM extraction requires an LLM provider (Settings)")
         schema = resolved_schema or opts.llm_schema
@@ -234,15 +253,6 @@ def build_extraction_strategy(
 # ---------------------------------------------------------------------------
 # CrawlerRunConfig
 # ---------------------------------------------------------------------------
-
-_CACHE_MODES = {
-    "enabled": CacheMode.ENABLED,
-    "bypass": CacheMode.BYPASS,
-    "disabled": CacheMode.DISABLED,
-    "read_only": CacheMode.READ_ONLY,
-    "write_only": CacheMode.WRITE_ONLY,
-}
-
 
 def _apply_page_options(kwargs: dict[str, Any], page: PageOptions) -> None:
     _set_if(kwargs, "wait_until", page.wait_until)
@@ -266,10 +276,14 @@ def _apply_page_options(kwargs: dict[str, Any], page: PageOptions) -> None:
     _set_if(kwargs, "locale", page.locale)
     _set_if(kwargs, "timezone_id", page.timezone_id)
     if page.geolocation_latitude is not None and page.geolocation_longitude is not None:
+        from crawl4ai import GeolocationConfig
+
         kwargs["geolocation"] = GeolocationConfig(
             latitude=page.geolocation_latitude, longitude=page.geolocation_longitude
         )
     if page.virtual_scroll is not None:
+        from crawl4ai import VirtualScrollConfig
+
         kwargs["virtual_scroll_config"] = VirtualScrollConfig(
             container_selector=page.virtual_scroll.container_selector,
             scroll_count=page.virtual_scroll.scroll_count,
@@ -300,7 +314,16 @@ def _apply_content_options(kwargs: dict[str, Any], content: ContentOptions) -> N
 
 def _apply_capture_options(kwargs: dict[str, Any], capture: CaptureOptions) -> None:
     if capture.cache_mode:
-        kwargs["cache_mode"] = _CACHE_MODES[capture.cache_mode]
+        from crawl4ai import CacheMode
+
+        cache_modes = {
+            "enabled": CacheMode.ENABLED,
+            "bypass": CacheMode.BYPASS,
+            "disabled": CacheMode.DISABLED,
+            "read_only": CacheMode.READ_ONLY,
+            "write_only": CacheMode.WRITE_ONLY,
+        }
+        kwargs["cache_mode"] = cache_modes[capture.cache_mode]
     _set_if(kwargs, "screenshot", capture.screenshot)
     _set_if(kwargs, "screenshot_wait_for", capture.screenshot_wait_for)
     _set_if(kwargs, "pdf", capture.pdf)
@@ -317,6 +340,8 @@ def build_crawler_config(
     stream: Optional[bool] = None,
     deep_crawl_strategy: Any = None,
 ) -> CrawlerRunConfig:
+    from crawl4ai import CrawlerRunConfig
+
     kwargs: dict[str, Any] = {"verbose": False}
     _apply_page_options(kwargs, payload.page)
     _apply_content_options(kwargs, payload.content)
@@ -343,10 +368,14 @@ def build_crawler_config(
 
 def _build_filter(spec: DeepFilterSpec):
     if spec.type == "url_pattern":
+        from crawl4ai import URLPatternFilter
+
         if not spec.patterns:
             raise MappingError("url_pattern filter requires patterns")
         return URLPatternFilter(patterns=spec.patterns, reverse=bool(spec.reverse))
     if spec.type == "domain":
+        from crawl4ai import DomainFilter
+
         if not spec.allowed_domains and not spec.blocked_domains:
             raise MappingError("domain filter requires allowed or blocked domains")
         return DomainFilter(
@@ -354,14 +383,20 @@ def _build_filter(spec: DeepFilterSpec):
             blocked_domains=spec.blocked_domains or None,
         )
     if spec.type == "content_type":
+        from crawl4ai import ContentTypeFilter
+
         if not spec.allowed_types:
             raise MappingError("content_type filter requires allowed types")
         return ContentTypeFilter(allowed_types=spec.allowed_types)
     if spec.type == "content_relevance":
+        from crawl4ai.deep_crawling.filters import ContentRelevanceFilter
+
         if not spec.query:
             raise MappingError("content_relevance filter requires a query")
         return ContentRelevanceFilter(query=spec.query, threshold=spec.threshold or 0.7)
     if spec.type == "seo":
+        from crawl4ai import SEOFilter
+
         kwargs: dict[str, Any] = {"threshold": spec.threshold or 0.5}
         if spec.keywords:
             kwargs["keywords"] = spec.keywords
@@ -370,6 +405,14 @@ def _build_filter(spec: DeepFilterSpec):
 
 
 def build_deep_crawl_strategy(req: DeepCrawlRequest):
+    from crawl4ai import (
+        BFSDeepCrawlStrategy,
+        BestFirstCrawlingStrategy,
+        DFSDeepCrawlStrategy,
+        FilterChain,
+        KeywordRelevanceScorer,
+    )
+
     filter_chain = FilterChain([_build_filter(f) for f in req.filters])
     scorer = None
     if req.keywords:
@@ -403,6 +446,12 @@ def build_deep_crawl_strategy(req: DeepCrawlRequest):
 # ---------------------------------------------------------------------------
 
 def build_dispatcher(opts: DispatcherOptions):
+    from crawl4ai import (
+        MemoryAdaptiveDispatcher,
+        RateLimiter,
+        SemaphoreDispatcher,
+    )
+
     rate_limiter = None
     if opts.rate_limit.enabled:
         rate_limiter = RateLimiter(
@@ -426,6 +475,8 @@ def build_dispatcher(opts: DispatcherOptions):
 # ---------------------------------------------------------------------------
 
 def build_seeding_config(req: SeedRequest) -> SeedingConfig:
+    from crawl4ai import SeedingConfig
+
     kwargs: dict[str, Any] = {
         "source": req.source,
         "pattern": req.pattern or "*",
@@ -448,6 +499,8 @@ def build_seeding_config(req: SeedRequest) -> SeedingConfig:
 
 
 def build_adaptive_config(req: AdaptiveRequest) -> AdaptiveConfig:
+    from crawl4ai.adaptive_crawler import AdaptiveConfig
+
     return AdaptiveConfig(
         confidence_threshold=req.confidence_threshold,
         max_depth=req.max_depth,
