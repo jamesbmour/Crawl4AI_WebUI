@@ -2,7 +2,7 @@
 # Vercel's container registry rejects large layer blobs (413 PAYLOAD_TOO_LARGE),
 # so the Python deps and each browser binary are installed in separate RUN
 # instructions to keep every layer well under the per-blob cap.
-FROM python:3.12-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -18,11 +18,11 @@ COPY requirements.txt requirements.txt
 
 # Heaviest dependencies first, in their own layer (~470MB uncompressed)
 RUN pip install --no-cache-dir playwright patchright litellm scipy \
-    && find /usr/local/lib/python3.12 -depth -type d -name __pycache__ -exec rm -rf {} +
+    && find /usr/local/lib/python3.13 -depth -type d -name __pycache__ -exec rm -rf {} +
 
 # Remaining dependencies (~260MB uncompressed)
 RUN pip install --no-cache-dir -r requirements.txt \
-    && find /usr/local/lib/python3.12 -depth -type d -name __pycache__ -exec rm -rf {} +
+    && find /usr/local/lib/python3.13 -depth -type d -name __pycache__ -exec rm -rf {} +
 
 # Browser binaries, one layer each (headless shell serves headless=True crawls)
 RUN python -m playwright install chromium-headless-shell
@@ -30,10 +30,14 @@ RUN python -m playwright install chromium --no-shell
 
 COPY app/ app/
 
-# Vercel serverless containers have a read-only rootfs; only /tmp is writable,
-# so the SQLite DB and artifacts must live there. (Data is ephemeral per the
-# platform — see README on hosting caveats.)
+# Vercel serverless containers have a read-only rootfs; only /tmp is writable.
+# Both our app data AND crawl4ai's own home dir (which it creates at import time
+# via os.makedirs on CRAWL4_AI_BASE_DIRECTORY/.crawl4ai, defaulting to ~/.crawl4ai)
+# must therefore live under /tmp, or the import crashes the whole app.
+# (Data is ephemeral per the platform — see README on hosting caveats.)
 ENV C4AI_WEBUI_DATA=/tmp/c4ai-webui-data \
+    CRAWL4_AI_BASE_DIRECTORY=/tmp \
+    HOME=/tmp \
     PORT=80
 EXPOSE 80
 

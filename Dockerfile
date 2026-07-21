@@ -17,9 +17,9 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 COPY backend/requirements.txt backend/requirements.txt
 # Deps and browsers split across layers to stay under registry per-blob caps
 RUN pip install --no-cache-dir playwright patchright litellm scipy \
-    && find /usr/local/lib/python3.12 -depth -type d -name __pycache__ -exec rm -rf {} +
+    && find /usr/local/lib/python3.13 -depth -type d -name __pycache__ -exec rm -rf {} +
 RUN pip install --no-cache-dir -r backend/requirements.txt \
-    && find /usr/local/lib/python3.12 -depth -type d -name __pycache__ -exec rm -rf {} +
+    && find /usr/local/lib/python3.13 -depth -type d -name __pycache__ -exec rm -rf {} +
 RUN python -m playwright install chromium-headless-shell
 RUN python -m playwright install chromium --no-shell
 COPY backend/ backend/

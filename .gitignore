@@ -151,3 +151,4 @@ backend/.venv/
 # App data (jobs DB, artifacts, LLM keys)
 data/
 
+.vercel
