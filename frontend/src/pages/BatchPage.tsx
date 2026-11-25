@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Play } from "lucide-react";
-import { api, prune, type SlimResult } from "../lib/api";
+import { prune, type SlimResult } from "../lib/api";
 import { ConfigPanel } from "../components/ConfigPanel";
 import { useCrawlConfig } from "../components/useCrawlConfig";
-import { ResultTabs } from "../components/ResultTabs";
+import { ResultPreview } from "../components/ResultPreview";
 import { ErrorBanner, JobBar, ResultsTable } from "../components/shared";
 import { useJob } from "../components/useJob";
 
@@ -13,7 +13,6 @@ export default function BatchPage() {
   const [dispatcher, setDispatcher] = useState<Record<string, any>>({ type: "memory_adaptive" });
   const [rateLimit, setRateLimit] = useState<Record<string, any>>({ enabled: false });
   const [selected, setSelected] = useState<SlimResult | null>(null);
-  const [detail, setDetail] = useState<any>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const job = useJob();
 
@@ -26,13 +25,6 @@ export default function BatchPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (selected && job.jobId) {
-      setDetail(null);
-      api.get(`/jobs/${job.jobId}/results/${selected.index}`).then(setDetail).catch(() => {});
-    }
-  }, [selected, job.jobId]);
-
   const urls = urlText
     .split(/\s+/)
     .map((u) => u.trim())
@@ -42,7 +34,6 @@ export default function BatchPage() {
     if (!configReady || !urls.length) return;
     setStartError(null);
     setSelected(null);
-    setDetail(null);
     try {
       await job.start("/crawl/batch", {
         urls,
@@ -59,7 +50,7 @@ export default function BatchPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-lg font-semibold text-zinc-100">Batch crawl</h2>
+        <h1 className="page-title">Batch crawl</h1>
         <p className="text-sm text-zinc-500">
           Crawl many URLs concurrently with arun_many — adaptive dispatching, rate limiting, streaming results.
         </p>
@@ -72,7 +63,7 @@ export default function BatchPage() {
         onChange={(e) => setUrlText(e.target.value)}
       />
 
-      <div className="card p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="card p-4 grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4 gap-4">
         <div>
           <label className="label">Dispatcher</label>
           <select
@@ -168,11 +159,12 @@ export default function BatchPage() {
       <ConfigPanel config={config} onChange={setConfig} />
 
       <ResultsTable
+        key={job.jobId}
         results={job.results}
         onSelect={setSelected}
         selected={selected?.index ?? null}
       />
-      {detail && job.jobId && <ResultTabs result={detail} jobId={job.jobId} />}
+      {selected && job.jobId && <ResultPreview jobId={job.jobId} index={selected.index} />}
     </div>
   );
 }

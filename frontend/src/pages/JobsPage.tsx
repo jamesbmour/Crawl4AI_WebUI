@@ -37,9 +37,9 @@ export default function JobsPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-100">Jobs</h2>
+          <h1 className="page-title">Jobs</h1>
           <p className="text-sm text-zinc-500">Every crawl run, with stored results and artifacts.</p>
         </div>
         <button className="btn-secondary !py-1.5 text-xs" onClick={refresh} disabled={loading}>
@@ -47,8 +47,8 @@ export default function JobsPage() {
         </button>
       </header>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card table-scroll" role="region" aria-label="Job history" tabIndex={0}>
+        <table className="min-w-[680px] w-full text-sm">
           <thead>
             <tr className="text-left text-xs text-zinc-500 border-b border-surface-border">
               <th className="px-3 py-2">Job</th>

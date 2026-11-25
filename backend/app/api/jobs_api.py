@@ -41,11 +41,10 @@ async def get_job_results(job_id: str, full: bool = False):
 
 @router.get("/jobs/{job_id}/results/{index}")
 async def get_job_result(job_id: str, index: int):
-    results = await storage.get_results(job_id, full=True)
-    for summary in results:
-        if summary.get("index") == index:
-            return summary
-    raise HTTPException(404, "Result not found")
+    summary = await storage.get_result(job_id, index)
+    if summary is None:
+        raise HTTPException(404, "Result not found")
+    return summary
 
 
 @router.get("/jobs/{job_id}/stream")

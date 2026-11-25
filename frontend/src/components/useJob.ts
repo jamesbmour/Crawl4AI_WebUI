@@ -27,8 +27,16 @@ const initial: JobState = {
 export function useJob() {
   const [state, setState] = useState<JobState>(initial);
   const unsubRef = useRef<(() => void) | null>(null);
+  const pending = useRef<Promise<string> | null>(null);
+  const mounted = useRef(false);
 
-  useEffect(() => () => unsubRef.current?.(), []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      unsubRef.current?.();
+    };
+  }, []);
 
   const attach = useCallback((jobId: string) => {
     unsubRef.current?.();
@@ -40,6 +48,10 @@ export function useJob() {
           next.status = event.status as JobState["status"];
           next.stopping = false;
           if (event.error) next.error = event.error;
+          } else if (event.type === "error") {
+            next.status = "failed";
+            next.stopping = false;
+            next.error = event.message ?? "Unable to follow this crawl.";
         } else if (event.type === "progress" && event.message) {
           next.progress = event.message;
         } else if (event.type === "result" && event.result) {
@@ -56,14 +68,22 @@ export function useJob() {
     });
   }, []);
 
-  const start = useCallback(
-    async (path: string, payload: unknown): Promise<string> => {
-      const { job_id } = await api.post(path, payload);
-      attach(job_id);
-      return job_id;
-    },
-    [attach]
-  );
+  const start = useCallback((path: string, payload: unknown): Promise<string> => {
+    if (pending.current) return pending.current;
+    setState({ ...initial, status: "queued" });
+    const request = api.post(path, payload)
+      .then(({ job_id }) => {
+        if (mounted.current) attach(job_id);
+        return job_id;
+      })
+      .catch((error: Error) => {
+        if (mounted.current) setState(initial);
+        throw error;
+      })
+      .finally(() => { pending.current = null; });
+    pending.current = request;
+    return request;
+  }, [attach]);
 
   const cancel = useCallback(async () => {
     if (state.jobId) {

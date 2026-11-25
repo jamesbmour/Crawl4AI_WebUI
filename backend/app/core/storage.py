@@ -32,9 +32,11 @@ CREATE TABLE IF NOT EXISTS results (
     url TEXT,
     success INTEGER,
     summary TEXT NOT NULL,
+    summary_slim TEXT,
     created_at REAL NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_results_job ON results(job_id);
+CREATE INDEX IF NOT EXISTS idx_results_job_idx ON results(job_id, idx);
+DROP INDEX IF EXISTS idx_results_job;
 CREATE TABLE IF NOT EXISTS schemas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -70,6 +72,12 @@ async def get_db() -> aiosqlite.Connection:
         await _db.execute("PRAGMA busy_timeout=5000")
         await _db.execute("PRAGMA synchronous=NORMAL")
         await _db.executescript(_SCHEMA)
+        # Serialize the schema upgrade across processes using the same database.
+        await _db.execute("BEGIN IMMEDIATE")
+        async with _db.execute("PRAGMA table_info(results)") as cur:
+            result_columns = {row["name"] for row in await cur.fetchall()}
+        if "summary_slim" not in result_columns:
+            await _db.execute("ALTER TABLE results ADD COLUMN summary_slim TEXT")
         await _db.commit()
     return _db
 
@@ -144,13 +152,15 @@ def _job_row(row: aiosqlite.Row) -> dict[str, Any]:
 async def add_result(job_id: str, index: int, summary: dict[str, Any]) -> None:
     db = await get_db()
     await db.execute(
-        "INSERT INTO results (job_id, idx, url, success, summary, created_at) VALUES (?,?,?,?,?,?)",
+        """INSERT INTO results (job_id, idx, url, success, summary, summary_slim, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
         (
             job_id,
             index,
             summary.get("url"),
             1 if summary.get("success") else 0,
             json.dumps(summary, default=str),
+            json.dumps(slim_summary(summary), default=str),
             time.time(),
         ),
     )
@@ -160,16 +170,30 @@ async def add_result(job_id: str, index: int, summary: dict[str, Any]) -> None:
     await db.commit()
 
 
-async def get_results(job_id: str, full: bool = True) -> list[dict[str, Any]]:
+async def get_result(job_id: str, index: int) -> Optional[dict[str, Any]]:
     db = await get_db()
     async with db.execute(
-        "SELECT summary FROM results WHERE job_id = ? ORDER BY idx", (job_id,)
+        "SELECT summary FROM results WHERE job_id = ? AND idx = ? ORDER BY id LIMIT 1",
+        (job_id, index),
+    ) as cur:
+        row = await cur.fetchone()
+    return json.loads(row["summary"]) if row else None
+
+
+async def get_results(job_id: str, full: bool = True) -> list[dict[str, Any]]:
+    db = await get_db()
+    # Older rows have no slim summary and can still be read without a rewrite.
+    fields = "summary" if full else (
+        "COALESCE(summary_slim, summary) AS summary, summary_slim IS NOT NULL AS is_slim"
+    )
+    async with db.execute(
+        f"SELECT {fields} FROM results WHERE job_id = ? ORDER BY idx", (job_id,)
     ) as cur:
         rows = await cur.fetchall()
     out = []
     for row in rows:
         summary = json.loads(row["summary"])
-        if not full:
+        if not full and not row["is_slim"]:
             summary = slim_summary(summary)
         out.append(summary)
     return out

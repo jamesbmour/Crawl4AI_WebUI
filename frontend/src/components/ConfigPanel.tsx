@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useState } from "react";
 import { Check, ChevronDown, ChevronRight, FolderOpen, Save, Star } from "lucide-react";
 import { CONFIG_GROUPS, type CrawlConfig, type GroupId } from "../lib/config";
-import { Field } from "./Field";
-import { ExtractionEditor } from "./ExtractionEditor";
 import { api } from "../lib/api";
+import { ErrorBanner } from "./shared";
+
+const Field = lazy(() => import("./Field").then((module) => ({ default: module.Field })));
+const ExtractionEditor = lazy(() => import("./ExtractionEditor").then((module) => ({ default: module.ExtractionEditor })));
+const loading = <p className="px-4 pb-4 text-sm text-zinc-400" role="status">Loading options…</p>;
 
 interface Props {
   config: CrawlConfig;
@@ -12,14 +15,19 @@ interface Props {
 }
 
 export function ConfigPanel({ config, onChange, showExtraction = true }: Props) {
+  const idPrefix = useId();
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [profiles, setProfiles] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [savingDefault, setSavingDefault] = useState(false);
   const [defaultStatus, setDefaultStatus] = useState<"idle" | "saved" | "error">("idle");
 
   useEffect(() => {
-    api.get("/profiles").then(setProfiles).catch(() => {});
+    const controller = new AbortController();
+    api.get("/profiles", controller.signal).then(setProfiles).catch(() => {});
+    return () => controller.abort();
   }, []);
 
   const setGroup = (id: GroupId, group: Record<string, any>) =>
@@ -34,9 +42,12 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
     const name = window.prompt("Profile name:");
     if (!name) return;
     setSaving(true);
+    setProfileError(null);
     try {
       await api.post("/profiles", { name, config });
       setProfiles(await api.get("/profiles"));
+    } catch (error) {
+      setProfileError((error as Error).message);
     } finally {
       setSaving(false);
     }
@@ -44,9 +55,17 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
 
   const applyProfile = async (id: string) => {
     if (!id) return;
-    const profile = await api.get(`/profiles/${id}`);
-    const base: CrawlConfig = { browser: {}, page: {}, content: {}, markdown: {}, capture: {}, extraction: { type: "none" } };
-    onChange({ ...base, ...profile.config });
+    setProfileError(null);
+    setApplying(true);
+    try {
+      const profile = await api.get(`/profiles/${id}`);
+      const base: CrawlConfig = { browser: {}, page: {}, content: {}, markdown: {}, capture: {}, extraction: { type: "none" } };
+      onChange({ ...base, ...profile.config });
+    } catch (error) {
+      setProfileError((error as Error).message);
+    } finally {
+      setApplying(false);
+    }
   };
 
   const saveAsDefault = async () => {
@@ -64,22 +83,24 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
   };
 
   return (
-    <div className="card divide-y divide-surface-border">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5">
-        <h3 className="text-sm font-semibold text-zinc-200">Configuration</h3>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+    <div className="card config-panel divide-y divide-surface-border">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 px-4 py-3">
+        <h2 className="pr-2 text-base font-semibold text-zinc-100">Configuration</h2>
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           {profiles.length > 0 && (
-            <div className="flex items-center gap-1">
-              <FolderOpen size={14} className="text-zinc-500" />
+            <div className="flex min-w-0 items-center gap-1">
+              <FolderOpen size={14} className="shrink-0 text-zinc-400" aria-hidden="true" />
               <select
-                className="bg-surface-overlay border border-surface-border rounded-md text-xs px-2 py-1 text-zinc-300"
+                aria-label="Apply profile"
+                className="min-h-10 min-w-0 rounded-md border border-surface-border bg-surface-overlay px-2 text-sm text-zinc-300"
                 defaultValue=""
+                disabled={applying}
                 onChange={(e) => {
                   applyProfile(e.target.value);
                   e.target.value = "";
                 }}
               >
-                <option value="">Apply profile…</option>
+                <option value="">{applying ? "Applying profile…" : "Apply profile…"}</option>
                 {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -96,6 +117,7 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
             {defaultStatus === "saved" ? "Default saved" : defaultStatus === "error" ? "Save failed" : "Save as default"}
           </button>
         </div>
+        {profileError && <div className="mt-2 w-full"><ErrorBanner message={profileError} /></div>}
       </div>
 
       {CONFIG_GROUPS.map((group) => {
@@ -104,32 +126,35 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
         return (
           <div key={group.id}>
             <button
-              className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-overlay/50 transition-colors"
+              type="button"
+              className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-overlay/50"
+              aria-expanded={isOpen}
+              aria-controls={isOpen ? `${idPrefix}-${group.id}` : undefined}
               onClick={() => setOpen({ ...open, [group.id]: !isOpen })}
             >
-              <div className="flex items-center gap-2">
-                {isOpen ? <ChevronDown size={16} className="text-zinc-500" /> : <ChevronRight size={16} className="text-zinc-500" />}
-                <span className="text-sm font-medium text-zinc-200">{group.title}</span>
-                {active > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/20 text-accent font-semibold">
-                    {active}
-                  </span>
-                )}
-              </div>
-              <span className="text-xs text-zinc-500">{group.description}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium text-zinc-200">{group.title}</span>
+                <span className="block text-xs text-zinc-400">{group.description}</span>
+              </span>
+              {active > 0 && <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent" aria-label={`${active} options set`}>{active}</span>}
+              {isOpen ? <ChevronDown size={16} className="shrink-0 text-zinc-400" /> : <ChevronRight size={16} className="shrink-0 text-zinc-400" />}
             </button>
             {isOpen && (
-              <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-x-6">
-                {group.fields
-                  .filter((f) => !f.showIf || f.showIf(config[group.id] ?? {}))
-                  .map((f) => (
-                    <Field
-                      key={f.key}
-                      def={f}
-                      value={config[group.id]?.[f.key]}
-                      onChange={(v) => setGroup(group.id, { ...config[group.id], [f.key]: v })}
-                    />
-                  ))}
+              <div id={`${idPrefix}-${group.id}`}>
+                <Suspense fallback={loading}>
+                  <div className="config-fields">
+                    {group.fields
+                      .filter((f) => !f.showIf || f.showIf(config[group.id] ?? {}))
+                      .map((f) => (
+                        <Field
+                          key={f.key}
+                          def={f}
+                          value={config[group.id]?.[f.key]}
+                          onChange={(v) => setGroup(group.id, { ...config[group.id], [f.key]: v })}
+                        />
+                      ))}
+                  </div>
+                </Suspense>
               </div>
             )}
           </div>
@@ -139,26 +164,29 @@ export function ConfigPanel({ config, onChange, showExtraction = true }: Props) 
       {showExtraction && (
         <div>
           <button
-            className="w-full flex items-center justify-between px-4 py-3 hover:bg-surface-overlay/50 transition-colors"
+            type="button"
+            className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-overlay/50"
+            aria-expanded={!!open.extraction}
+            aria-controls={open.extraction ? `${idPrefix}-extraction` : undefined}
             onClick={() => setOpen({ ...open, extraction: !(open.extraction ?? false) })}
           >
-            <div className="flex items-center gap-2">
-              {open.extraction ? <ChevronDown size={16} className="text-zinc-500" /> : <ChevronRight size={16} className="text-zinc-500" />}
-              <span className="text-sm font-medium text-zinc-200">Extraction</span>
-              {config.extraction?.type && config.extraction.type !== "none" && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/20 text-accent font-semibold uppercase">
-                  {config.extraction.type}
-                </span>
-              )}
-            </div>
-            <span className="text-xs text-zinc-500">Structured data (CSS / XPath / Regex / LLM)</span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium text-zinc-200">Extraction</span>
+              <span className="block text-xs text-zinc-400">Structured data (CSS / XPath / Regex / LLM)</span>
+            </span>
+            {config.extraction?.type && config.extraction.type !== "none" && (
+              <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs uppercase text-accent">{config.extraction.type}</span>
+            )}
+            {open.extraction ? <ChevronDown size={16} className="shrink-0 text-zinc-400" /> : <ChevronRight size={16} className="shrink-0 text-zinc-400" />}
           </button>
           {open.extraction && (
-            <div className="px-4 pb-4">
-              <ExtractionEditor
-                value={config.extraction ?? { type: "none" }}
-                onChange={(extraction) => onChange({ ...config, extraction })}
-              />
+            <div id={`${idPrefix}-extraction`} className="px-4 pb-4">
+              <Suspense fallback={loading}>
+                <ExtractionEditor
+                  value={config.extraction ?? { type: "none" }}
+                  onChange={(extraction) => onChange({ ...config, extraction })}
+                />
+              </Suspense>
             </div>
           )}
         </div>

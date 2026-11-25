@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Check, Loader2, Save, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { ErrorBanner } from "../components/shared";
-import { JsonBlock } from "../components/ResultTabs";
+import { JsonBlock } from "../components/JsonBlock";
 
 const PROVIDER_EXAMPLES = [
   "openai/gpt-4o-mini",
@@ -58,7 +58,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <header>
-        <h2 className="text-lg font-semibold text-zinc-100">Settings</h2>
+        <h1 className="page-title">Settings</h1>
         <p className="text-sm text-zinc-500">
           LLM provider for extraction, filtering, schema generation and Q&A
           {meta?.crawl4ai_version && <> · crawl4ai v{meta.crawl4ai_version}</>}
@@ -101,7 +101,7 @@ export default function SettingsPage() {
             onChange={(e) => setForm({ ...form, llm_api_token: e.target.value })}
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="label">Base URL (optional)</label>
             <input
@@ -111,7 +111,7 @@ export default function SettingsPage() {
               onChange={(e) => setForm({ ...form, llm_base_url: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Temperature</label>
               <input

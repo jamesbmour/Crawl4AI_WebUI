@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
 import { ErrorBanner, JobBar, ResultsTable } from "../components/shared";
-import { JsonBlock } from "../components/ResultTabs";
+import { JsonBlock } from "../components/JsonBlock";
 import { useJob } from "../components/useJob";
 
 export default function AdaptivePage() {
@@ -43,7 +43,7 @@ export default function AdaptivePage() {
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-lg font-semibold text-zinc-100">Adaptive crawl</h2>
+        <h1 className="page-title">Adaptive crawl</h1>
         <p className="text-sm text-zinc-500">
           Information-foraging crawl that stops when it has gathered enough content to answer a query.
         </p>
@@ -70,7 +70,7 @@ export default function AdaptivePage() {
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4 gap-4">
           <div>
             <label className="label">Strategy</label>
             <select className="input" value={strategy} onChange={(e) => setStrategy(e.target.value)}>
@@ -109,7 +109,7 @@ export default function AdaptivePage() {
       <JobBar job={job} onCancel={job.cancel} />
 
       {stats && (
-        <div className="card p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="card p-4 grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4 gap-4">
           <Stat label="Confidence" value={typeof stats.confidence === "number" ? `${(stats.confidence * 100).toFixed(0)}%` : "—"} />
           <Stat label="Pages crawled" value={String(stats.pages_crawled ?? "—")} />
           <Stat label="Relevant pages" value={String(job.results.length)} />
@@ -118,6 +118,7 @@ export default function AdaptivePage() {
       )}
 
       <ResultsTable
+        key={job.jobId}
         results={job.results}
         showDepth
         onSelect={async (r) => {

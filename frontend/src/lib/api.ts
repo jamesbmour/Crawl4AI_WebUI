@@ -21,7 +21,7 @@ async function handle(res: Response) {
 }
 
 export const api = {
-  get: (path: string) => fetch(`/api${path}`).then(handle),
+  get: (path: string, signal?: AbortSignal) => fetch(`/api${path}`, { signal }).then(handle),
   post: (path: string, body?: unknown) =>
     fetch(`/api${path}`, {
       method: "POST",
@@ -60,6 +60,10 @@ export interface SlimResult {
   artifacts?: string[];
 }
 
+export function isTerminalJobStatus(status?: string) {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
 /** Subscribe to a job's SSE stream. Returns an unsubscribe function. */
 export function streamJob(jobId: string, onEvent: (e: JobEvent) => void): () => void {
   const es = new EventSource(`/api/jobs/${jobId}/stream`);
@@ -67,7 +71,7 @@ export function streamJob(jobId: string, onEvent: (e: JobEvent) => void): () => 
     try {
       const event = JSON.parse(msg.data) as JobEvent;
       onEvent(event);
-      if (event.type === "status" && ["completed", "failed", "cancelled"].includes(event.status ?? "")) {
+      if (event.type === "error" || (event.type === "status" && isTerminalJobStatus(event.status))) {
         es.close();
       }
     } catch {

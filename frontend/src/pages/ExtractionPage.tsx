@@ -4,7 +4,7 @@ import { api, prune } from "../lib/api";
 import { ExtractionEditor, SchemaJsonEditor } from "../components/ExtractionEditor";
 import { useCrawlConfig } from "../components/useCrawlConfig";
 import { ErrorBanner, JobBar } from "../components/shared";
-import { JsonBlock } from "../components/ResultTabs";
+import { JsonBlock } from "../components/JsonBlock";
 import { useJob } from "../components/useJob";
 
 export default function ExtractionPage() {
@@ -85,7 +85,7 @@ export default function ExtractionPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-lg font-semibold text-zinc-100">Extraction studio</h2>
+        <h1 className="page-title">Extraction studio</h1>
         <p className="text-sm text-zinc-500">
           Build and test extraction strategies — CSS/XPath schemas (LLM-generated once, reused forever), regex and LLM extraction.
         </p>
@@ -105,7 +105,7 @@ export default function ExtractionPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
         <div className="space-y-4">
           <div className="card p-4">
             <div className="flex items-center justify-between mb-3">

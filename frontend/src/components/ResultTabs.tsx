@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Download, Check } from "lucide-react";
+import { Download } from "lucide-react";
+import { CopyButton, JsonBlock } from "./JsonBlock";
 import { artifactUrl } from "../lib/api";
 
 interface Props {
@@ -47,19 +48,24 @@ export function ResultTabs({ result, jobId }: Props) {
 
   return (
     <div className="card">
-      <div className="flex items-center gap-1 px-3 pt-3 pb-2 border-b border-surface-border overflow-x-auto">
-        {tabs.map((t) => (
-          <button key={t.id} className={`tab whitespace-nowrap ${active === t.id ? "tab-active" : ""}`} onClick={() => setTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
-        <div className="ml-auto">
-          <a className="btn-ghost !px-2 !py-1 text-xs" href={`/api/jobs/${jobId}/export.zip`}>
-            <Download size={13} /> Export
-          </a>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border px-3 py-2">
+        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto py-1" role="group" aria-label="Result format">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              className={`tab whitespace-nowrap ${active === t.id ? "tab-active" : ""}`}
+              aria-pressed={active === t.id}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
+        <a className="btn-ghost shrink-0 !px-2 text-xs" href={`/api/jobs/${jobId}/export.zip`}>
+          <Download size={14} aria-hidden="true" /> Export ZIP
+        </a>
       </div>
-      <div className="p-4 max-h-[640px] overflow-auto">
+      <div className="result-content max-h-[640px] min-w-0 overflow-auto p-3 sm:p-4">
         {active === "markdown" && <MarkdownTab result={result} jobId={jobId} />}
         {active === "html" && <HtmlTab result={result} jobId={jobId} />}
         {active === "extracted" && <JsonBlock data={result.extracted_content} />}
@@ -88,23 +94,6 @@ export function ResultTabs({ result, jobId }: Props) {
   );
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      className="btn-ghost !px-2 !py-1 text-xs"
-      onClick={() => {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-      }}
-    >
-      {copied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
-      {copied ? "Copied" : "Copy"}
-    </button>
-  );
-}
-
 function MarkdownTab({ result, jobId }: Props) {
   const hasFit = !!result.fit_markdown;
   const [view, setView] = useState<"raw" | "fit" | "rendered">("rendered");
@@ -112,16 +101,16 @@ function MarkdownTab({ result, jobId }: Props) {
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="flex gap-1">
-          <button className={`tab ${view === "rendered" ? "tab-active" : ""}`} onClick={() => setView("rendered")}>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1">
+          <button className={`tab ${view === "rendered" ? "tab-active" : ""}`} aria-pressed={view === "rendered"} onClick={() => setView("rendered")}>
             Rendered
           </button>
-          <button className={`tab ${view === "raw" ? "tab-active" : ""}`} onClick={() => setView("raw")}>
+          <button className={`tab ${view === "raw" ? "tab-active" : ""}`} aria-pressed={view === "raw"} onClick={() => setView("raw")}>
             Raw
           </button>
           {hasFit && (
-            <button className={`tab ${view === "fit" ? "tab-active" : ""}`} onClick={() => setView("fit")}>
+            <button className={`tab ${view === "fit" ? "tab-active" : ""}`} aria-pressed={view === "fit"} onClick={() => setView("fit")}>
               Fit (filtered)
             </button>
           )}
@@ -139,7 +128,12 @@ function MarkdownTab({ result, jobId }: Props) {
       </div>
       {view === "rendered" ? (
         <div className="markdown-body">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text ?? ""}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            components={{ img: ({ node: _node, ...props }) => <img {...props} loading="lazy" decoding="async" /> }}
+          >
+            {text ?? ""}
+          </ReactMarkdown>
         </div>
       ) : (
         <pre className="text-xs font-mono whitespace-pre-wrap text-zinc-300">{text}</pre>
@@ -153,14 +147,14 @@ function HtmlTab({ result, jobId }: Props) {
   const text = view === "cleaned" ? result.cleaned_html : result.html;
   return (
     <div>
-      <div className="flex items-center gap-2 mb-3">
-        <div className="flex gap-1">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1">
           {result.cleaned_html && (
-            <button className={`tab ${view === "cleaned" ? "tab-active" : ""}`} onClick={() => setView("cleaned")}>
+            <button className={`tab ${view === "cleaned" ? "tab-active" : ""}`} aria-pressed={view === "cleaned"} onClick={() => setView("cleaned")}>
               Cleaned
             </button>
           )}
-          <button className={`tab ${view === "raw" ? "tab-active" : ""}`} onClick={() => setView("raw")}>
+          <button className={`tab ${view === "raw" ? "tab-active" : ""}`} aria-pressed={view === "raw"} onClick={() => setView("raw")}>
             Raw
           </button>
         </div>
@@ -181,18 +175,6 @@ function HtmlTab({ result, jobId }: Props) {
       ) : (
         <p className="text-sm text-zinc-500">HTML too large for inline view — use the download button.</p>
       )}
-    </div>
-  );
-}
-
-export function JsonBlock({ data }: { data: any }) {
-  const text = typeof data === "string" ? data : JSON.stringify(data, null, 2);
-  return (
-    <div>
-      <div className="flex justify-end mb-2">
-        <CopyButton text={text} />
-      </div>
-      <pre className="text-xs font-mono whitespace-pre-wrap text-zinc-300">{text}</pre>
     </div>
   );
 }
@@ -300,12 +282,12 @@ function NetworkTab({ result }: { result: any }) {
     <div>
       <div className="flex gap-1 mb-3">
         {result.network_requests?.length > 0 && (
-          <button className={`tab ${view === "network" ? "tab-active" : ""}`} onClick={() => setView("network")}>
+          <button className={`tab ${view === "network" ? "tab-active" : ""}`} aria-pressed={view === "network"} onClick={() => setView("network")}>
             Network ({result.network_requests_count})
           </button>
         )}
         {result.console_messages?.length > 0 && (
-          <button className={`tab ${view === "console" ? "tab-active" : ""}`} onClick={() => setView("console")}>
+          <button className={`tab ${view === "console" ? "tab-active" : ""}`} aria-pressed={view === "console"} onClick={() => setView("console")}>
             Console ({result.console_messages.length})
           </button>
         )}

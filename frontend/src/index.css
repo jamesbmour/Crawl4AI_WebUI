@@ -5,6 +5,7 @@
 @layer base {
   html {
     @apply bg-surface text-zinc-200 antialiased;
+    color-scheme: dark;
   }
   body {
     @apply min-h-screen;
@@ -23,10 +24,10 @@
 
 @layer components {
   .btn {
-    @apply inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn bg-accent text-white hover:bg-accent-hover;
+    @apply btn bg-accent font-semibold text-surface hover:bg-accent-hover;
   }
   .btn-secondary {
     @apply btn bg-surface-overlay text-zinc-200 border border-surface-border hover:border-zinc-500;
@@ -35,20 +36,118 @@
     @apply btn text-zinc-400 hover:text-zinc-100 hover:bg-surface-overlay;
   }
   .input {
-    @apply w-full rounded-lg bg-surface-overlay border border-surface-border px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent;
+    @apply min-h-10 min-w-0 w-full rounded-lg bg-surface-overlay border border-surface-border px-3 py-2 text-sm text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent;
   }
   .card {
     @apply rounded-xl bg-surface-raised border border-surface-border;
   }
   .label {
-    @apply block text-xs font-medium text-zinc-400 mb-1;
+    @apply block text-sm font-medium text-zinc-300 mb-1.5;
   }
   .tab {
-    @apply px-3 py-1.5 text-sm rounded-md cursor-pointer transition-colors text-zinc-400 hover:text-zinc-100;
+    @apply min-h-10 px-3 py-1.5 text-sm rounded-md cursor-pointer transition-colors text-zinc-300 hover:text-zinc-100;
   }
   .tab-active {
-    @apply bg-surface-overlay text-zinc-100;
+    @apply bg-accent/10 text-accent;
   }
+  .studio {
+    @apply min-h-screen lg:grid lg:grid-cols-[216px_minmax(0,1fr)];
+  }
+  .studio-sidebar {
+    @apply border-b border-surface-border bg-surface-raised lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto lg:border-b-0 lg:border-r;
+  }
+  .studio-brand-row {
+    @apply flex items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-4 lg:py-6;
+  }
+  .studio-brand {
+    @apply inline-flex min-w-0 items-center gap-2.5 text-base font-bold tracking-tight text-zinc-100;
+  }
+  .studio-mark {
+    @apply grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent;
+  }
+  .studio-brand-subtitle {
+    @apply font-medium text-zinc-400;
+  }
+  .studio-menu {
+    @apply shrink-0 px-3 lg:hidden;
+  }
+  .studio-nav {
+    @apply hidden gap-4 border-t border-surface-border px-4 py-4 data-[open=true]:grid sm:grid-cols-3 sm:px-6 lg:grid lg:grid-cols-1 lg:border-t-0 lg:px-3 lg:py-2;
+  }
+  .studio-nav-group {
+    @apply min-w-0 space-y-1;
+  }
+  .studio-nav-label {
+    @apply px-3 pb-1 text-xs font-medium text-zinc-400;
+  }
+  .studio-nav-link {
+    @apply flex min-h-10 items-center gap-3 rounded-md border border-transparent px-3 text-sm font-medium text-zinc-300 transition-colors hover:bg-surface-overlay hover:text-zinc-100;
+  }
+  .studio-nav-link[aria-current="page"] {
+    @apply border-accent/20 bg-accent/10 text-accent;
+  }
+  .studio-nav-link svg {
+    @apply shrink-0;
+  }
+  .studio-main {
+    @apply mx-auto w-full min-w-0 max-w-[1440px] px-4 py-6 sm:px-7 sm:py-8 xl:px-10 xl:py-10;
+  }
+  .studio-skip {
+    @apply sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-accent focus:p-3 focus:text-surface;
+  }
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-zinc-100 sm:text-3xl;
+  }
+  .table-scroll {
+    @apply max-w-full overflow-x-auto;
+  }
+  .scrape-workspace {
+    @apply grid items-start gap-4 xl:gap-6;
+    grid-template: "request" auto "output" auto "options" auto / minmax(0, 1fr);
+  }
+  .scrape-request { grid-area: request; }
+  .scrape-output { grid-area: output; }
+  .scrape-options { grid-area: options; }
+  .config-panel {
+    container-type: inline-size;
+  }
+  .config-fields {
+    @apply grid min-w-0 grid-cols-1 gap-x-6 px-4 pb-4;
+  }
+  @container (min-width: 36rem) {
+    .config-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 80rem) {
+    .scrape-workspace {
+      grid-template: "request options" auto "output options" 1fr / minmax(0, 1fr) minmax(20rem, 25rem);
+    }
+  }
+  @media (pointer: coarse) {
+    .studio .input {
+      font-size: 1rem;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+:focus-visible {
+  outline: 2px solid theme("colors.accent.DEFAULT");
+  outline-offset: 2px;
+}
+
+.studio-main > div > header p {
+  @apply mt-1 text-zinc-400;
+}
+
+.markdown-body,
+.result-content pre {
+  overflow-wrap: anywhere;
 }
 
 .markdown-body {

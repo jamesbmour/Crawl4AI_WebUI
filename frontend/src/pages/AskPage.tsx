@@ -62,7 +62,7 @@ export default function AskPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-lg font-semibold text-zinc-100">Ask</h2>
+        <h1 className="page-title">Ask</h1>
         <p className="text-sm text-zinc-500">Chat with crawled content — a page URL or a finished job's results.</p>
       </header>
 
@@ -82,12 +82,12 @@ export default function AskPage() {
           </button>
         </div>
         {sourceType === "url" ? (
-          <div className="flex-1 min-w-[280px]">
+          <div className="flex-1 basis-[240px] min-w-0">
             <label className="label">Page URL</label>
             <input className="input" placeholder="https://example.com/article" value={url} onChange={(e) => setUrl(e.target.value)} />
           </div>
         ) : (
-          <div className="flex-1 min-w-[280px]">
+          <div className="flex-1 basis-[240px] min-w-0">
             <label className="label">Completed job</label>
             <select className="input" value={jobId} onChange={(e) => setJobId(e.target.value)}>
               <option value="">Select a job…</option>

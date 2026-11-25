@@ -64,7 +64,7 @@ export default function DiscoveryPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-lg font-semibold text-zinc-100">URL discovery</h2>
+        <h1 className="page-title">URL discovery</h1>
         <p className="text-sm text-zinc-500">
           Discover URLs from sitemaps and Common Crawl before crawling — with optional BM25 relevance scoring.
         </p>
@@ -80,7 +80,7 @@ export default function DiscoveryPage() {
             onChange={(e) => setDomains(e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-4 gap-4">
           <div>
             <label className="label">Source</label>
             <select className="input" value={source} onChange={(e) => setSource(e.target.value)}>
@@ -103,7 +103,7 @@ export default function DiscoveryPage() {
               Live check (HEAD)
             </label>
           </div>
-          <div className="col-span-2">
+          <div className="min-[420px]:col-span-2">
             <label className="label">Relevance query (BM25 scoring over page heads)</label>
             <input
               className="input"
@@ -135,7 +135,7 @@ export default function DiscoveryPage() {
 
       {results && (
         <div className="space-y-3">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <p className="text-sm text-zinc-400">
               {allEntries.length} URLs found · {checked.size} selected
             </p>
@@ -143,14 +143,15 @@ export default function DiscoveryPage() {
               <Send size={14} /> Send to batch crawl
             </button>
           </div>
-          <div className="card overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="card table-scroll" role="region" aria-label="Discovered URLs" tabIndex={0}>
+            <table className="min-w-[540px] w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-zinc-500 border-b border-surface-border">
                   <th className="px-3 py-2 w-8">
                     <input
                       type="checkbox"
                       className="accent-orange-500"
+                      aria-label="Select all URLs"
                       checked={checked.size === allEntries.length && allEntries.length > 0}
                       onChange={(e) =>
                         setChecked(e.target.checked ? new Set(allEntries.map((x) => x.url)) : new Set())
@@ -170,6 +171,7 @@ export default function DiscoveryPage() {
                       <input
                         type="checkbox"
                         className="accent-orange-500"
+                        aria-label={`Select ${e.url}`}
                         checked={checked.has(e.url)}
                         onChange={(ev) => {
                           const next = new Set(checked);

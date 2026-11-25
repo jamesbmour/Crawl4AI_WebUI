@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Download, RotateCw } from "lucide-react";
-import { api, streamJob, type SlimResult } from "../lib/api";
-import { ResultTabs, JsonBlock } from "../components/ResultTabs";
+import { api, isTerminalJobStatus, streamJob, type SlimResult } from "../lib/api";
+import { JsonBlock } from "../components/JsonBlock";
+import { ResultPreview } from "../components/ResultPreview";
 import { ErrorBanner, ResultsTable, StatusBadge } from "../components/shared";
 
 const RERUN_ENDPOINTS: Record<string, string> = {
@@ -18,58 +19,69 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<any>(null);
   const [results, setResults] = useState<SlimResult[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
-  const [detail, setDetail] = useState<any>(null);
-
-  const refresh = async () => {
-    const j = await api.get(`/jobs/${jobId}`);
-    setJob(j);
-    setResults(await api.get(`/jobs/${jobId}/results`));
-    return j;
-  };
+  const [error, setError] = useState<string | null>(null);
+  const [rerunning, setRerunning] = useState(false);
 
   useEffect(() => {
-    let unsub: (() => void) | null = null;
-    refresh().then((j) => {
-      if (j.running) {
-        unsub = streamJob(jobId, (event) => {
-          if (event.type === "result" && event.result) {
+    const controller = new AbortController();
+    const { signal } = controller;
+    let unsubscribe: (() => void) | undefined;
+    const refresh = async () => {
+      const jobPath = `/jobs/${jobId}`;
+      const [snapshot, pages] = await Promise.all([
+        api.get(jobPath, signal),
+        api.get(`${jobPath}/results`, signal),
+      ]);
+      // A job can finish between the parallel reads.
+      const currentPages = !snapshot.running && pages.length < snapshot.completed_urls
+        ? await api.get(`${jobPath}/results`, signal)
+        : pages;
+      if (!signal.aborted) {
+        setJob(snapshot);
+        setResults(currentPages);
+      }
+      return snapshot;
+    };
+    const reportError = (error: Error) => {
+      if (!signal.aborted) setError(error.message);
+    };
+    refresh().then((snapshot) => {
+      if (!signal.aborted && snapshot.running) {
+        unsubscribe = streamJob(jobId, ({ type, status, result, message }) => {
+          if (type === "result" && result) {
             setResults((prev) => {
-              const exists = prev.some((r) => r.index === event.result!.index);
-              return exists ? prev : [...prev, event.result!];
+              const exists = prev.some((r) => r.index === result.index);
+              return exists ? prev : [...prev, result];
             });
           }
-          if (event.type === "status") refresh();
+          if (type === "status" && isTerminalJobStatus(status)) refresh().catch(reportError);
+          if (type === "error" && message) setError(message);
         });
       }
-    });
-    return () => unsub?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }).catch(reportError);
+    return () => {
+      controller.abort();
+      unsubscribe?.();
+    };
   }, [jobId]);
-
-  useEffect(() => {
-    if (selected !== null) {
-      setDetail(null);
-      api.get(`/jobs/${jobId}/results/${selected}`).then(setDetail).catch(() => {});
-    }
-  }, [selected, jobId]);
 
   useEffect(() => {
     // Auto-open single-result jobs
     if (results.length === 1 && selected === null) setSelected(results[0].index);
   }, [results, selected]);
 
-  if (!job) return <p className="text-sm text-zinc-500">Loading…</p>;
+  if (!job) return error ? <ErrorBanner message={error} /> : <p className="text-sm text-zinc-400" role="status">Loading job…</p>;
 
   const showDepth = job.type === "deep" || job.type === "adaptive";
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center gap-3">
-        <Link to="/jobs" className="btn-ghost !p-2">
+      <header className="flex flex-wrap items-center gap-3">
+        <Link to="/jobs" className="btn-ghost !p-2" aria-label="Back to jobs">
           <ArrowLeft size={16} />
         </Link>
-        <div className="flex-1">
-          <h2 className="text-lg font-semibold text-zinc-100 font-mono">{job.id}</h2>
+        <div className="min-w-0 flex-1">
+          <h1 className="page-title font-mono">{job.id}</h1>
           <p className="text-sm text-zinc-500 capitalize">
             {job.type} · {new Date(job.created_at * 1000).toLocaleString()}
           </p>
@@ -78,9 +90,18 @@ export default function JobDetailPage() {
         {RERUN_ENDPOINTS[job.type] && !job.running && (
           <button
             className="btn-secondary !py-1.5 text-xs"
+            disabled={rerunning}
             onClick={async () => {
-              const { job_id } = await api.post(RERUN_ENDPOINTS[job.type], job.payload);
-              navigate(`/jobs/${job_id}`);
+              setRerunning(true);
+              setError(null);
+              try {
+                const { job_id } = await api.post(RERUN_ENDPOINTS[job.type], job.payload);
+                navigate(`/jobs/${job_id}`);
+              } catch (error) {
+                setError((error as Error).message);
+              } finally {
+                setRerunning(false);
+              }
             }}
           >
             <RotateCw size={14} /> Re-run
@@ -91,7 +112,7 @@ export default function JobDetailPage() {
         </a>
       </header>
 
-      {job.error && <ErrorBanner message={job.error} />}
+      <ErrorBanner message={error ?? job.error} />
 
       {job.extra?.confidence !== undefined && (
         <div className="card p-4 text-sm text-zinc-300">
@@ -105,7 +126,7 @@ export default function JobDetailPage() {
         <ResultsTable results={results} onSelect={(r) => setSelected(r.index)} selected={selected} showDepth={showDepth} />
       )}
 
-      {detail && <ResultTabs result={detail} jobId={job.id} />}
+      {selected !== null && <ResultPreview jobId={jobId} index={selected} />}
 
       <details className="card p-4">
         <summary className="text-sm font-semibold text-zinc-300 cursor-pointer">Request payload</summary>

@@ -1,10 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { CircleHelp } from "lucide-react";
-import CodeMirror from "@uiw/react-codemirror";
-import { javascript } from "@codemirror/lang-javascript";
-import { json as jsonLang } from "@codemirror/lang-json";
-import { tokyoNight } from "@uiw/codemirror-theme-tokyo-night";
 import type { FieldDef } from "../lib/config";
+
+const CodeEditor = lazy(() => import("./CodeEditor"));
+const editorLoading = <p className="px-3 py-2 text-sm text-zinc-400" role="status">Loading editor…</p>;
 
 interface Props {
   def: FieldDef;
@@ -13,10 +12,11 @@ interface Props {
 }
 
 export function Field({ def, value, onChange }: Props) {
+  const id = useId();
   switch (def.type) {
     case "boolean":
       return (
-        <div className="flex items-center justify-between gap-3 py-1.5 group">
+        <div className="group relative flex items-center justify-between gap-3 py-1.5">
           <span className="inline-flex items-center text-sm text-zinc-300 group-hover:text-zinc-100">
             {def.label}
             {def.help && <HelpTooltip label={def.label} text={def.help} />}
@@ -41,8 +41,9 @@ export function Field({ def, value, onChange }: Props) {
       );
     case "number":
       return (
-        <Wrap def={def}>
+        <Wrap def={def} id={id}>
           <input
+            id={id}
             type="number"
             className="input"
             step={def.step ?? 1}
@@ -54,8 +55,9 @@ export function Field({ def, value, onChange }: Props) {
       );
     case "text":
       return (
-        <Wrap def={def}>
+        <Wrap def={def} id={id}>
           <input
+            id={id}
             type="text"
             className="input"
             placeholder={def.placeholder}
@@ -66,8 +68,9 @@ export function Field({ def, value, onChange }: Props) {
       );
     case "textarea":
       return (
-        <Wrap def={def}>
+        <Wrap def={def} id={id}>
           <textarea
+            id={id}
             className="input min-h-[70px] font-mono text-xs"
             placeholder={def.placeholder}
             value={value ?? ""}
@@ -77,8 +80,9 @@ export function Field({ def, value, onChange }: Props) {
       );
     case "select":
       return (
-        <Wrap def={def}>
+        <Wrap def={def} id={id}>
           <select
+            id={id}
             className="input"
             value={value ?? ""}
             onChange={(e) => onChange(e.target.value || undefined)}
@@ -100,25 +104,25 @@ export function Field({ def, value, onChange }: Props) {
       return (
         <Wrap def={def}>
           <div className="rounded-lg overflow-hidden border border-surface-border">
-            <CodeMirror
-              value={typeof value === "string" ? value : ""}
-              onChange={(v) => onChange(v || undefined)}
-              extensions={[javascript()]}
-              theme={tokyoNight}
-              height="120px"
-              basicSetup={{ lineNumbers: true, foldGutter: false }}
-            />
+            <Suspense fallback={editorLoading}>
+              <CodeEditor
+                language="javascript"
+                value={typeof value === "string" ? value : ""}
+                onChange={(v) => onChange(v || undefined)}
+                height="120px"
+              />
+            </Suspense>
           </div>
         </Wrap>
       );
   }
 }
 
-function Wrap({ def, children }: { def: FieldDef; children: React.ReactNode }) {
+function Wrap({ def, id, children }: { def: FieldDef; id?: string; children: React.ReactNode }) {
   return (
-    <div className="py-1.5">
+    <div className="relative min-w-0 py-1.5">
       <div className="label flex items-center">
-        {def.label}
+        {id ? <label htmlFor={id}>{def.label}</label> : def.label}
         {def.help && <HelpTooltip label={def.label} text={def.help} />}
       </div>
       {children}
@@ -129,7 +133,7 @@ function Wrap({ def, children }: { def: FieldDef; children: React.ReactNode }) {
 function HelpTooltip({ label, text }: { label: string; text: string }) {
   const tooltipId = useId();
   return (
-    <span className="relative ml-1 inline-flex group/tooltip">
+    <span className="ml-1 inline-flex group/tooltip">
       <button
         type="button"
         className="rounded-sm text-zinc-500 hover:text-zinc-200 focus:text-zinc-200 focus:outline-none focus:ring-1 focus:ring-accent"
@@ -141,7 +145,7 @@ function HelpTooltip({ label, text }: { label: string; text: string }) {
       <span
         id={tooltipId}
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-30 mb-2 w-64 rounded-lg border border-surface-border bg-zinc-950 px-3 py-2 text-left text-xs font-normal leading-relaxed text-zinc-200 opacity-0 shadow-xl transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100"
+        className="invisible pointer-events-none absolute bottom-full left-0 z-30 w-64 max-w-full rounded-lg border border-surface-border bg-surface px-3 py-2 text-left text-xs font-normal leading-relaxed text-zinc-200 shadow-xl group-hover/tooltip:visible group-focus-within/tooltip:visible"
       >
         {text}
       </span>
@@ -156,6 +160,7 @@ function HelpTooltip({ label, text }: { label: string; text: string }) {
  *  `onChange` with the parsed array, and only re-syncs from `value` when it
  *  changes for reasons other than our own commit (reset, loaded profile). */
 function ListField({ def, value, onChange }: Props) {
+  const id = useId();
   const toText = (v: any) => (Array.isArray(v) ? v.join(", ") : "");
   const [text, setText] = useState<string>(toText(value));
   const lastCommitted = useRef<any>(value);
@@ -168,8 +173,9 @@ function ListField({ def, value, onChange }: Props) {
   }, [value]);
 
   return (
-    <Wrap def={def}>
+    <Wrap def={def} id={id}>
       <input
+        id={id}
         type="text"
         className="input"
         placeholder={def.placeholder ?? "comma, separated, values"}
@@ -197,28 +203,29 @@ function JsonField({ def, value, onChange }: Props) {
   return (
     <Wrap def={def}>
       <div className={`rounded-lg overflow-hidden border ${error ? "border-red-600" : "border-surface-border"}`}>
-        <CodeMirror
-          value={text}
-          onChange={(v) => {
-            setText(v);
-            if (!v.trim()) {
-              setError(null);
-              onChange(undefined);
-              return;
-            }
-            try {
-              onChange(JSON.parse(v));
-              setError(null);
-            } catch {
-              setError("Invalid JSON");
-            }
-          }}
-          extensions={[jsonLang()]}
-          theme={tokyoNight}
-          height="100px"
-          placeholder={def.placeholder}
-          basicSetup={{ lineNumbers: false, foldGutter: false }}
-        />
+        <Suspense fallback={editorLoading}>
+          <CodeEditor
+            language="json"
+            value={text}
+            onChange={(v) => {
+              setText(v);
+              if (!v.trim()) {
+                setError(null);
+                onChange(undefined);
+                return;
+              }
+              try {
+                onChange(JSON.parse(v));
+                setError(null);
+              } catch {
+                setError("Invalid JSON");
+              }
+            }}
+            height="100px"
+            placeholder={def.placeholder}
+            lineNumbers={false}
+          />
+        </Suspense>
       </div>
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </Wrap>

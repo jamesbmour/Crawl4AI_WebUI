@@ -1,5 +1,6 @@
 """API smoke tests using the ASGI transport (no browser launched)."""
 import asyncio
+import json
 import os
 import tempfile
 
@@ -123,6 +124,29 @@ async def test_jobs_list(client):
     r = await client.get("/api/jobs")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_job_results_include_legacy_and_new_summaries(client):
+    from app.core import storage
+
+    job_id = await storage.create_job("batch", {})
+    legacy = {"index": 0, "url": "https://example.test/legacy", "success": True, "markdown": "old"}
+    new = {"index": 1, "url": "https://example.test/new", "success": True, "markdown": "new result"}
+    db = await storage.get_db()
+    await db.execute(
+        "INSERT INTO results (job_id, idx, summary, created_at) VALUES (?, ?, ?, ?)",
+        (job_id, 0, json.dumps(legacy), 0),
+    )
+    await db.commit()
+    await storage.add_result(job_id, 1, new)
+
+    path = f"/api/jobs/{job_id}/results"
+    assert (await client.get(path)).json() == [storage.slim_summary(legacy), storage.slim_summary(new)]
+    assert (await client.get(path, params={"full": "true"})).json() == [legacy, new]
+    assert (await client.get(f"{path}/0")).json() == legacy
+    assert (await client.get(f"{path}/1")).json() == new
+    assert (await client.get(f"{path}/2")).status_code == 404
 
 
 @pytest.mark.asyncio
