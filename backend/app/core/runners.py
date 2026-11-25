@@ -1,7 +1,9 @@
 """Job runner factories — the code that actually drives crawl4ai per job type."""
 from __future__ import annotations
 
+import asyncio
 import json
+from contextlib import aclosing
 from typing import Any, Awaitable, Callable, Optional
 
 from ..models.schemas import (
@@ -24,6 +26,28 @@ from .settings import get_llm_config
 Publish = Callable[..., Awaitable[None]]
 
 
+async def _save_crawl_result(
+    result, job_id: str, index: int, publish: Publish, total: Optional[int] = None
+) -> bool:
+    summary = serialize_result(result, job_id, index)
+
+    async def save() -> None:
+        await storage.add_result(job_id, index, summary)
+        event = {"result": storage.slim_summary(summary), "completed": index + 1}
+        if total is not None:
+            event["total"] = total
+        await publish(job_id, "result", event)
+
+    # A stop can interrupt navigation immediately; finish saving a page already returned.
+    pending = asyncio.create_task(save())
+    try:
+        await asyncio.shield(pending)
+    except asyncio.CancelledError:
+        await pending
+        raise
+    return summary["success"]
+
+
 def make_single_crawl_runner(req: CrawlRequest, resolved_schema: Optional[dict] = None):
     async def runner(job_id: str, publish: Publish) -> None:
         llm = get_llm_config()
@@ -42,6 +66,8 @@ def make_single_crawl_runner(req: CrawlRequest, resolved_schema: Optional[dict] 
 
 def make_batch_crawl_runner(req: BatchCrawlRequest, resolved_schema: Optional[dict] = None):
     async def runner(job_id: str, publish: Publish) -> None:
+        from .crawl_streams import stream_results
+
         llm = get_llm_config()
         config = build_crawler_config(req.config, llm, resolved_schema, stream=True)
         dispatcher = build_dispatcher(req.dispatcher)
@@ -51,19 +77,11 @@ def make_batch_crawl_runner(req: BatchCrawlRequest, resolved_schema: Optional[di
         )
         index = 0
         failures = 0
-        async for result in await crawler.arun_many(
-            req.urls, config=config, dispatcher=dispatcher
-        ):
-            summary = serialize_result(result, job_id, index)
-            await storage.add_result(job_id, index, summary)
-            await publish(
-                job_id,
-                "result",
-                {"result": storage.slim_summary(summary), "completed": index + 1, "total": len(req.urls)},
-            )
-            if not summary["success"]:
-                failures += 1
-            index += 1
+        async with aclosing(stream_results(crawler, req.urls, config, dispatcher)) as results:
+            async for result in results:
+                if not await _save_crawl_result(result, job_id, index, publish, total=len(req.urls)):
+                    failures += 1
+                index += 1
         if failures == len(req.urls) and req.urls:
             raise RuntimeError("All URLs failed to crawl")
 
@@ -72,11 +90,11 @@ def make_batch_crawl_runner(req: BatchCrawlRequest, resolved_schema: Optional[di
 
 def make_deep_crawl_runner(req: DeepCrawlRequest, resolved_schema: Optional[dict] = None):
     async def runner(job_id: str, publish: Publish) -> None:
+        from .crawl_streams import DeepCrawlStreams
+
         llm = get_llm_config()
         strategy = build_deep_crawl_strategy(req)
-        config = build_crawler_config(
-            req.config, llm, resolved_schema, stream=True, deep_crawl_strategy=strategy
-        )
+        config = build_crawler_config(req.config, llm, resolved_schema, stream=True)
         crawler = await get_crawler(req.config.browser)
         await publish(
             job_id,
@@ -84,11 +102,15 @@ def make_deep_crawl_runner(req: DeepCrawlRequest, resolved_schema: Optional[dict
             {"message": f"Deep crawl ({req.strategy}) from {req.url}, depth ≤ {req.max_depth}"},
         )
         index = 0
-        async for result in await crawler.arun(req.url, config=config):
-            summary = serialize_result(result, job_id, index)
-            await storage.add_result(job_id, index, summary)
-            await publish(job_id, "result", {"result": storage.slim_summary(summary), "completed": index + 1})
-            index += 1
+        streams = DeepCrawlStreams(crawler)
+        try:
+            async with aclosing(await strategy.arun(start_url=req.url, crawler=streams, config=config)) as results:
+                async for result in results:
+                    await _save_crawl_result(result, job_id, index, publish)
+                    index += 1
+        finally:
+            await streams.close()
+            await strategy.shutdown()
         if index == 0:
             raise RuntimeError("Deep crawl produced no pages")
 

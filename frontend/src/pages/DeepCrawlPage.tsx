@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Loader2, Play, Plus, Trash2 } from "lucide-react";
 import { prune, type SlimResult } from "../lib/api";
 import { ConfigPanel } from "../components/ConfigPanel";
+import { CrawlProgress } from "../components/CrawlProgress";
 import { useCrawlConfig } from "../components/useCrawlConfig";
 import { ResultPreview } from "../components/ResultPreview";
-import { ErrorBanner, JobBar, ResultsTable } from "../components/shared";
+import { ErrorBanner, ResultsTable } from "../components/shared";
 import { useJob } from "../components/useJob";
 
 interface FilterRow {
@@ -103,6 +104,9 @@ export default function DeepCrawlPage() {
           Crawl
         </button>
       </div>
+
+      <ErrorBanner message={startError ?? job.error} />
+      <CrawlProgress kind="deep" {...job} onCancel={job.cancel} />
 
       <div className="card p-4 grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-5 gap-4">
         <div>
@@ -303,9 +307,6 @@ export default function DeepCrawlPage() {
           </div>
         ))}
       </div>
-
-      <ErrorBanner message={startError ?? job.error} />
-      <JobBar job={job} onCancel={job.cancel} />
 
       <ConfigPanel config={config} onChange={setConfig} />
 

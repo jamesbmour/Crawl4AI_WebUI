@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Download, RotateCw } from "lucide-react";
 import { api, isTerminalJobStatus, streamJob, type SlimResult } from "../lib/api";
+import { CrawlProgress } from "../components/CrawlProgress";
 import { JsonBlock } from "../components/JsonBlock";
 import { ResultPreview } from "../components/ResultPreview";
 import { ErrorBanner, ResultsTable, StatusBadge } from "../components/shared";
+import { useJobCancellation } from "../components/useJob";
 
 const RERUN_ENDPOINTS: Record<string, string> = {
   scrape: "/crawl",
@@ -21,6 +23,7 @@ export default function JobDetailPage() {
   const [selected, setSelected] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState(false);
+  const cancellation = useJobCancellation(jobId, !!job?.running && !isTerminalJobStatus(job.status));
 
   useEffect(() => {
     const controller = new AbortController();
@@ -73,6 +76,7 @@ export default function JobDetailPage() {
   if (!job) return error ? <ErrorBanner message={error} /> : <p className="text-sm text-zinc-400" role="status">Loading job…</p>;
 
   const showDepth = job.type === "deep" || job.type === "adaptive";
+  const showProgress = job.type === "batch" || job.type === "deep";
 
   return (
     <div className="space-y-4">
@@ -86,7 +90,7 @@ export default function JobDetailPage() {
             {job.type} · {new Date(job.created_at * 1000).toLocaleString()}
           </p>
         </div>
-        <StatusBadge status={job.status} />
+        {!showProgress && <StatusBadge status={job.status} />}
         {RERUN_ENDPOINTS[job.type] && !job.running && (
           <button
             className="btn-secondary !py-1.5 text-xs"
@@ -113,6 +117,20 @@ export default function JobDetailPage() {
       </header>
 
       <ErrorBanner message={error ?? job.error} />
+
+      {showProgress && (
+        <CrawlProgress
+          kind={job.type}
+          jobId={jobId}
+          status={job.status}
+          results={results}
+          total={job.total_urls}
+          stopping={cancellation.stopping}
+          cancelError={cancellation.cancelError}
+          onCancel={job.running ? cancellation.cancel : undefined}
+          showJobLink={false}
+        />
+      )}
 
       {job.extra?.confidence !== undefined && (
         <div className="card p-4 text-sm text-zinc-300">

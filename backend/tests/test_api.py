@@ -174,3 +174,87 @@ async def test_cancel_running_job(client):
 
     assert job["status"] == "cancelled"
     assert job["finished_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_cancel_while_job_is_starting(client, monkeypatch):
+    from app.core import jobs, storage
+
+    update_job = storage.update_job
+    starting = asyncio.Event()
+
+    async def pause_start(job_id, **fields):
+        if fields.get("status") == "running":
+            starting.set()
+            await asyncio.Event().wait()
+        await update_job(job_id, **fields)
+
+    async def runner(job_id, publish):
+        pytest.fail("A cancelled job should not reach its runner")
+
+    monkeypatch.setattr(storage, "update_job", pause_start)
+    job_id = await jobs.start_job("batch", {}, runner)
+    await asyncio.wait_for(starting.wait(), timeout=2)
+    assert (await client.post(f"/api/jobs/{job_id}/cancel")).status_code == 200
+    stream = await asyncio.wait_for(client.get(f"/api/jobs/{job_id}/stream"), timeout=2)
+    assert '"status": "cancelled"' in stream.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["memory_adaptive", "semaphore", "deep"])
+async def test_cancel_crawl_stops_worker_and_keeps_result(client, monkeypatch, mode):
+    from crawl4ai import CrawlResult
+    from app.core import runners
+    from app.core.crawl_streams import remember_crawl_page
+
+    start_url = "https://example.test/start"
+    slow_url = "https://example.test/slow"
+    worker_started = asyncio.Event()
+    worker_stopped = asyncio.Event()
+    page_closed = asyncio.Event()
+
+    class FixturePage:
+        async def close(self):
+            page_closed.set()
+
+    class FixtureCrawler:
+        async def arun(self, url, config, **kwargs):
+            if url == slow_url:
+                await remember_crawl_page(FixturePage(), config=config)
+                worker_started.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    worker_stopped.set()
+            return CrawlResult(
+                url=url,
+                html="<p>Saved result</p>",
+                success=True,
+                links={"internal": [{"href": slow_url}]},
+            )
+
+    async def get_crawler(*args):
+        return FixtureCrawler()
+
+    monkeypatch.setattr(runners, "get_crawler", get_crawler)
+    if mode == "deep":
+        response = await client.post("/api/crawl/deep", json={"url": start_url, "max_depth": 1})
+    else:
+        response = await client.post(
+            "/api/crawl/batch",
+            json={"urls": [start_url, slow_url], "dispatcher": {"type": mode}},
+        )
+    assert response.status_code == 200
+    path = f"/api/jobs/{response.json()['job_id']}"
+    async with asyncio.timeout(3):
+        await worker_started.wait()
+        while not (await client.get(f"{path}/results")).json():
+            await asyncio.sleep(0.01)
+        assert (await client.post(f"{path}/cancel")).status_code == 200
+        stream = await client.get(f"{path}/stream")
+
+    assert '"status": "cancelled"' in stream.text
+    assert worker_stopped.is_set()
+    assert page_closed.is_set()
+    assert (await client.get(path)).json()["completed_urls"] == 1
+    assert [result["url"] for result in (await client.get(f"{path}/results")).json()] == [start_url]

@@ -37,12 +37,16 @@ async def publish(job_id: str, event_type: str, data: dict[str, Any]) -> None:
 
 async def start_job(job_type: str, payload: dict[str, Any], runner: JobRunner, total_urls: int = 0) -> str:
     job_id = await storage.create_job(job_type, payload, total_urls=total_urls)
+    started = asyncio.Event()
 
     async def _run() -> None:
-        await storage.update_job(job_id, status="running", started_at=time.time())
-        await publish(job_id, "status", {"status": "running"})
         try:
+            started.set()
+            await storage.update_job(job_id, status="running", started_at=time.time())
+            await publish(job_id, "status", {"status": "running"})
             await runner(job_id, publish)
+            await storage.update_job(job_id, status="completed", finished_at=time.time())
+            await publish(job_id, "status", {"status": "completed"})
         except asyncio.CancelledError:
             await storage.update_job(job_id, status="cancelled", finished_at=time.time())
             await publish(job_id, "status", {"status": "cancelled"})
@@ -53,9 +57,6 @@ async def start_job(job_type: str, payload: dict[str, Any], runner: JobRunner, t
                 job_id, status="failed", error=str(exc), finished_at=time.time()
             )
             await publish(job_id, "status", {"status": "failed", "error": str(exc)})
-        else:
-            await storage.update_job(job_id, status="completed", finished_at=time.time())
-            await publish(job_id, "status", {"status": "completed"})
         finally:
             _tasks.pop(job_id, None)
             # Drop the event buffer after a grace period so late SSE
@@ -65,13 +66,18 @@ async def start_job(job_type: str, payload: dict[str, Any], runner: JobRunner, t
             loop.call_later(30, _event_buffer.pop, job_id, None)
 
     _tasks[job_id] = asyncio.create_task(_run())
+    # The task must enter its try/finally before callers can cancel it.
+    await started.wait()
     return job_id
 
 
-def cancel_job(job_id: str) -> bool:
+async def cancel_job(job_id: str, *, wait: bool = False) -> bool:
     task = _tasks.get(job_id)
     if task and not task.done():
-        task.cancel()
+        if not task.cancelling():
+            task.cancel()
+        if wait:
+            await asyncio.shield(asyncio.gather(task, return_exceptions=True))
         return True
     return False
 
@@ -100,8 +106,14 @@ async def sse_stream(job_id: str) -> AsyncIterator[str]:
     queue: asyncio.Queue = asyncio.Queue()
     _subscribers.setdefault(job_id, []).append(queue)
     try:
-        # Replay anything that happened before this client connected.
-        for event in list(_event_buffer.get(job_id, [])):
+        replay = list(_event_buffer.get(job_id, []))
+        if len(replay) == EVENT_BUFFER_MAX:
+            # Older page events may have aged out while the browser was away.
+            replayed = {event["result"]["index"] for event in replay if event["type"] == "result"}
+            for summary in await storage.get_results(job_id, full=False):
+                if summary["index"] not in replayed:
+                    yield _sse({"type": "result", "result": summary})
+        for event in replay:
             yield _sse(event)
             if event.get("type") == "status" and event.get("status") in terminal:
                 return

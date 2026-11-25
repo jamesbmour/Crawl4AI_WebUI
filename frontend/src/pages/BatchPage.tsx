@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { Download, Loader2, Play } from "lucide-react";
 import { prune, type SlimResult } from "../lib/api";
 import { ConfigPanel } from "../components/ConfigPanel";
+import { CrawlProgress } from "../components/CrawlProgress";
 import { useCrawlConfig } from "../components/useCrawlConfig";
 import { ResultPreview } from "../components/ResultPreview";
-import { ErrorBanner, JobBar, ResultsTable } from "../components/shared";
+import { ErrorBanner, ResultsTable } from "../components/shared";
 import { useJob } from "../components/useJob";
 
 export default function BatchPage() {
@@ -39,7 +40,7 @@ export default function BatchPage() {
         urls,
         config: prune(config) ?? {},
         dispatcher: { ...dispatcher, rate_limit: rateLimit },
-      });
+      }, urls.length);
     } catch (e: any) {
       setStartError(e.message);
     }
@@ -146,7 +147,7 @@ export default function BatchPage() {
           {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
           Crawl {urls.length || ""} URL{urls.length === 1 ? "" : "s"}
         </button>
-        {job.jobId && job.status === "completed" && (
+          {job.jobId && (job.status === "completed" || (job.status === "cancelled" && job.results.length > 0)) && (
           <a className="btn-secondary" href={`/api/jobs/${job.jobId}/export.zip`}>
             <Download size={15} /> Export all (.zip)
           </a>
@@ -154,7 +155,7 @@ export default function BatchPage() {
       </div>
 
       <ErrorBanner message={startError ?? job.error} />
-      <JobBar job={job} onCancel={job.cancel} />
+      <CrawlProgress kind="batch" {...job} onCancel={job.cancel} />
 
       <ConfigPanel config={config} onChange={setConfig} />
 

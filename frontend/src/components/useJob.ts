@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, streamJob, type JobEvent, type SlimResult } from "../lib/api";
+import { api, ApiError, streamJob, type JobEvent, type SlimResult } from "../lib/api";
 
 export interface JobState {
   jobId: string | null;
@@ -9,7 +9,6 @@ export interface JobState {
   results: SlimResult[];
   total: number | null;
   stats: Record<string, unknown> | null;
-  stopping: boolean;
 }
 
 const initial: JobState = {
@@ -20,8 +19,32 @@ const initial: JobState = {
   results: [],
   total: null,
   stats: null,
-  stopping: false,
 };
+
+/** Keep the stop request pending until the crawl reports a terminal status. */
+export function useJobCancellation(jobId: string | null, active: boolean) {
+  const [request, setRequest] = useState<{ jobId: string; stopping: boolean; error?: string } | null>(null);
+  const current = active && request?.jobId === jobId ? request : null;
+  const stopping = current?.stopping ?? false;
+
+  const cancel = async () => {
+    if (!jobId || !active || stopping) return;
+    setRequest({ jobId, stopping: true });
+    try {
+      await api.post(`/jobs/${jobId}/cancel`);
+    } catch (error) {
+      // A job that finished during the request will report its final state on the stream.
+      const message = error instanceof ApiError && error.status === 409
+        ? undefined
+        : "Could not stop the crawl. Try again.";
+      setRequest((previous) => previous?.jobId === jobId
+        ? { jobId, stopping: false, error: message }
+        : previous);
+    }
+  };
+
+  return { cancel, stopping, cancelError: current?.error ?? null };
+}
 
 /** Start jobs and stream their events into React state. */
 export function useJob() {
@@ -38,20 +61,18 @@ export function useJob() {
     };
   }, []);
 
-  const attach = useCallback((jobId: string) => {
+  const attach = useCallback((jobId: string, total: number | null = null) => {
     unsubRef.current?.();
-    setState({ ...initial, jobId, status: "running" });
+    setState({ ...initial, jobId, total, status: "running" });
     unsubRef.current = streamJob(jobId, (event: JobEvent) => {
       setState((prev) => {
         const next = { ...prev };
         if (event.type === "status" && event.status) {
           next.status = event.status as JobState["status"];
-          next.stopping = false;
           if (event.error) next.error = event.error;
-          } else if (event.type === "error") {
-            next.status = "failed";
-            next.stopping = false;
-            next.error = event.message ?? "Unable to follow this crawl.";
+        } else if (event.type === "error") {
+          next.status = "failed";
+          next.error = event.message ?? "Unable to follow this crawl.";
         } else if (event.type === "progress" && event.message) {
           next.progress = event.message;
         } else if (event.type === "result" && event.result) {
@@ -68,12 +89,12 @@ export function useJob() {
     });
   }, []);
 
-  const start = useCallback((path: string, payload: unknown): Promise<string> => {
+  const start = useCallback((path: string, payload: unknown, total: number | null = null): Promise<string> => {
     if (pending.current) return pending.current;
-    setState({ ...initial, status: "queued" });
+    setState({ ...initial, total, status: "queued" });
     const request = api.post(path, payload)
       .then(({ job_id }) => {
-        if (mounted.current) attach(job_id);
+        if (mounted.current) attach(job_id, total);
         return job_id;
       })
       .catch((error: Error) => {
@@ -85,22 +106,11 @@ export function useJob() {
     return request;
   }, [attach]);
 
-  const cancel = useCallback(async () => {
-    if (state.jobId) {
-      setState((prev) => ({ ...prev, stopping: true, progress: "Stopping crawl…" }));
-      try {
-        await api.post(`/jobs/${state.jobId}/cancel`);
-      } catch {
-        /* already finished */
-        setState((prev) => ({ ...prev, stopping: false }));
-      }
-    }
-  }, [state.jobId]);
-
   const reset = useCallback(() => {
     unsubRef.current?.();
     setState(initial);
   }, []);
 
-  return { ...state, start, attach, cancel, reset };
+  const cancellation = useJobCancellation(state.jobId, state.status === "queued" || state.status === "running");
+  return { ...state, ...cancellation, start, attach, reset };
 }

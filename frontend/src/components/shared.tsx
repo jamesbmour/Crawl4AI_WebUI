@@ -31,13 +31,15 @@ export function ErrorBanner({ message }: { message: string | null }) {
   );
 }
 
-export function JobBar({ job, onCancel }: { job: JobState; onCancel?: () => void | Promise<void> }) {
+export function JobBar({ job, onCancel }: { job: JobState & { stopping: boolean }; onCancel?: () => void | Promise<void> }) {
   if (job.status === "idle") return null;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-surface-border pt-3 text-sm">
       <div role="status" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <StatusBadge status={job.status} />
-        {job.progress && job.status === "running" && <span className="min-w-0 break-words text-zinc-400">{job.progress}</span>}
+          {job.stopping ? <span>Stopping crawl…</span> : (
+            job.progress && job.status === "running" && <span className="min-w-0 break-words text-zinc-400">{job.progress}</span>
+          )}
         {job.total != null && <span className="text-zinc-400">{job.results.length}/{job.total} pages</span>}
       </div>
       {job.jobId && (job.status === "queued" || job.status === "running") && onCancel && (

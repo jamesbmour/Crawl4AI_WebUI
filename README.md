@@ -1,489 +1,294 @@
+<div align="center">
+
 # Crawl4AI Studio
 
-A self-hosted web interface for [Crawl4AI](https://github.com/unclecode/crawl4ai) — a Firecrawl-style playground exposing the full feature surface of the library.
+**A self-hosted web UI for [Crawl4AI](https://github.com/unclecode/crawl4ai)** — configure crawls through forms, watch them run live, and browse, re-run or export the results. Firecrawl-style playground, full library surface.
 
-> 📚 **Detailed documentation** lives in [`docs/`](docs/README.md): [Architecture](docs/architecture.md) · [User Guide](docs/user-guide.md) · [Configuration](docs/configuration.md) · [API Reference](docs/api-reference.md) · [Data Model](docs/data-model.md) · [LLM Integration](docs/llm-integration.md) · [Development](docs/development.md) · [Deployment](docs/deployment.md). Those pages are generated from the actual source and are authoritative where they differ from this overview.
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776ab?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-61dafb?logo=react&logoColor=black)](https://react.dev/)
+[![Crawl4AI](https://img.shields.io/badge/Crawl4AI-0.7.x-ff6b35)](https://github.com/unclecode/crawl4ai)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-## Table of Contents
+[Quick Start](#quick-start) · [Features](#features) · [Configuration](#configuration) · [API](#api-reference) · [Docs](docs/README.md) · [Deploy](#deployment)
 
-- [Overview](#overview)
-- [Features](#features)
-- [Screenshots](#screenshots)
-- [Quick Start](#quick-start)
-- [Installation](#installation)
-- [Development](#development)
-- [Architecture](#architecture)
-- [API Reference](#api-reference)
-- [Configuration](#configuration)
-- [LLM Integration](#llm-integration)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Security](#security)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
+</div>
 
-## Overview
+---
 
-Crawl4AI Studio provides an intuitive web-based interface for the powerful Crawl4AI Python library. It transforms complex crawling operations into visual, configurable workflows suitable for both developers and non-technical users.
+## Why Crawl4AI Studio
 
-### Why Crawl4AI Studio?
-
-- **Visual Configuration**: No need to write Python code — configure crawls through an interactive UI
-- **Real-time Feedback**: Watch crawl progress live with Server-Sent Events (SSE)
-- **Persistent Jobs**: All crawl results are saved and can be revisited, re-run, or exported
-- **Schema Library**: Save and reuse extraction schemas across different crawls
-- **LLM-Powered Features**: Optional AI integration for smart filtering, extraction, and Q&A
+- **Visual configuration** — no Python needed; every `BrowserConfig` / `CrawlerRunConfig` option has a form field
+- **Live progress** — Server-Sent Events stream crawl status as it happens
+- **Persistent jobs** — results land in SQLite + filesystem; revisit, re-run, or export to ZIP
+- **Reusable schemas** — save, version and reuse extraction schemas, plus settings profiles
+- **Optional LLM layer** — schema generation, smart filtering, and RAG Q&A over crawled content
 
 ## Features
 
-### Core Crawling Modes
+### Crawling modes
 
-| Page | Description | Use Case |
-|------|-------------|----------|
-| **Scrape** | Single-URL playground with every `BrowserConfig`/`CrawlerRunConfig` option | Testing configurations, one-off extractions |
-| **Batch Crawl** | `arun_many()` over a URL list with memory-adaptive or semaphore dispatching | Bulk processing, data collection |
-| **Deep Crawl** | BFS / DFS / Best-First recursive crawling with filters | Site mapping, comprehensive extraction |
-| **Discovery** | `AsyncUrlSeeder` — find URLs from sitemaps / Common Crawl | URL discovery, seed generation |
+| Mode | Endpoint | Use case |
+|------|----------|----------|
+| **Scrape** | `POST /api/crawl` | Single URL, full config surface — testing and one-off extraction |
+| **Batch** | `POST /api/crawl/batch` | `arun_many()` with memory-adaptive or semaphore dispatching |
+| **Deep crawl** | `POST /api/crawl/deep` | BFS / DFS / best-first recursive crawl with filters |
+| **Discovery** | `POST /api/seed` | `AsyncUrlSeeder` — find URLs via sitemaps and Common Crawl |
+| **Adaptive** | `POST /api/adaptive` | Information-foraging crawl that stops once it knows enough |
 
-### Data Extraction
+### Extraction and output
 
-| Feature | Description |
-|---------|-------------|
-| **CSS/XPath Schemas** | Define extraction patterns visually; generate with LLM, reuse forever |
-| **Regex Patterns** | 21 built-in patterns plus custom regex support |
-| **LLM Extraction** | Natural language extraction using configured LLM provider |
-| **Schema Library** | Save, version, and manage extraction schemas |
+- **Extraction**: CSS/XPath schemas, 21 built-in regex patterns, LLM extraction, saved schema library
+- **Formats**: markdown (raw + filtered), cleaned/raw HTML, links, media, tables, metadata (OG, Twitter, JSON-LD)
+- **Capture**: screenshots (full page, viewport, element), PDF, MHTML, network and console logs, SSL cert details
+- **Ask interface**: RAG-style Q&A over any page or finished job (`POST /api/ask`)
 
-### Output Formats
+### UI pages
 
-- Markdown (raw + filtered)
-- Cleaned/raw HTML
-- Links (internal/external with metadata)
-- Media (images, videos, audio with dimensions/alt text)
-- Tables (structured data extraction)
-- Metadata (Open Graph, Twitter cards, JSON-LD)
-- Screenshots (full page, viewport, element)
-- PDF generation
-- MHTML archives
-- Network/console capture logs
-- SSL certificate details
-
-### Advanced Features
-
-- **Adaptive Crawling**: Information-foraging crawl that stops when it knows enough (statistical or embedding strategy)
-- **Ask Interface**: Q&A chat over any crawled page or finished job using RAG patterns
-- **Job Management**: Full history with stored artifacts, re-runnable payloads, ZIP export
-- **Settings Profiles**: Save and switch between different configuration presets
-- **Rate Limiting**: Built-in respect for robots.txt with configurable delays
+`/` scrape · `/batch` · `/deep` · `/discovery` · `/extraction` · `/adaptive` · `/ask` · `/jobs` · `/settings`
 
 ## Quick Start
 
 ```bash
-# Clone and enter the repository
-git clone <repository-url>
+git clone https://github.com/jamesbmour/crawl4ai_webui.git
 cd crawl4ai_webui
 
-# One-time setup
-bash ./run.sh setup   # Creates venv, installs crawl4ai, Playwright browsers, and npm packages
-
-# Start development servers
-bash ./run.sh dev     # Backend on :8742, UI on http://localhost:5173
+./run.sh setup     # venv + crawl4ai + Playwright Chromium + npm packages
+./run.sh dev       # backend :8742, UI http://localhost:5173
 ```
 
-Open your browser to `http://localhost:5173` to access the web interface.
-
-## Installation
+Open **http://localhost:5173**. For a single-process production build: `./run.sh prod` → http://127.0.0.1:8742.
 
 ### Prerequisites
 
-- **Python**: 3.11 or higher
-- **Node.js**: 18.x or higher
-- **System dependencies**:
-  - Playwright dependencies (installed automatically via `run.sh setup`)
-  - SQLite (usually included with Python)
+- **Python** 3.11+
+- **Node.js** 18+
+- SQLite (bundled with Python) and the Playwright system libraries (`./run.sh setup` installs the browsers)
 
-### Manual Installation
-
-If you prefer not to use the setup script:
+### Manual install
 
 ```bash
-# Backend setup
+# Backend
 cd backend
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
 playwright install chromium
 
-# Frontend setup
+# Frontend
 cd ../frontend
 npm install
 ```
 
-### Development vs Production
+### Commands
 
-**Development Mode**:
-- Backend and frontend run as separate processes
-- Hot reload enabled on both sides
-- Frontend proxies API calls to backend
+| Task | `scripts/` (recommended) | Legacy |
+|------|--------------------------|--------|
+| One-time setup | `./scripts/setup.sh` | `./run.sh setup` |
+| Dev servers (hot reload) | `./scripts/dev.sh` | `./run.sh dev` |
+| Production | `./scripts/prod.sh` | `./run.sh prod` |
+| Tests | `./scripts/test.sh` | `./run.sh test` |
 
-**Production Mode**:
-- Backend serves built frontend static files
-- Single server on port 8742
-- Optimized builds with minification
+Linux users also get double-click `.desktop` launchers in [`scripts/`](scripts/README.md).
 
-## Development
-
-### Project Structure
-
-```
-crawl4ai_webui/
-├── backend/                 # FastAPI backend
-│   ├── app/
-│   │   ├── api/            # REST API endpoints
-│   │   ├── core/           # Core utilities (mapping.py, etc.)
-│   │   ├── models/         # Pydantic models and DB schemas
-│   │   └── services/       # Business logic
-│   ├── tests/              # Unit and integration tests
-│   ├── requirements.txt    # Python dependencies
-│   └── pytest.ini         # Test configuration
-├── frontend/               # React + Vite frontend
-│   ├── src/
-│   │   ├── components/    # Reusable UI components
-│   │   ├── lib/           # Utilities and config definitions
-│   │   ├── pages/         # Route pages
-│   │   └── main.tsx       # Entry point
-│   ├── package.json       # Node dependencies
-│   └── tailwind.config.js # Tailwind configuration
-├── data/                  # Runtime data (SQLite, artifacts)
-├── scripts/              # Executable management scripts (setup, dev, prod, test)
-├── run.sh                # Development and deployment scripts (legacy)
-└── Dockerfile            # Container build instructions
-```
-
-### Available Commands
-
-The project provides management scripts in two locations - use whichever you prefer:
-
-**Via `scripts/` directory (recommended):**
-
-| Command | Description |
-|---------|-------------|
-| `./scripts/setup.sh` | Initial environment setup |
-| `./scripts/dev.sh` | Start development servers |
-| `./scripts/prod.sh` | Start production server |
-| `./scripts/test.sh` | Run test suite |
-
-**Via legacy `run.sh`:**
-
-| Command | Description |
-|---------|-------------|
-| `bash ./run.sh setup` | Initial environment setup |
-| `bash ./run.sh dev` | Start development servers |
-| `bash ./run.sh prod` | Start production server |
-| `bash ./run.sh test` | Run test suite |
-| `bash ./run.sh clean` | Clean build artifacts and dependencies |
-
-> **Note:** The `scripts/` directory also includes desktop launchers (`.desktop` files) for Linux users. See `scripts/README.md` for details.
-
-### Backend Development
-
-The backend follows FastAPI conventions:
-
-- **Entry Point**: `backend/app/main.py`
-- **Auto-reload**: Enabled in development mode
-- **API Documentation**: Available at `/docs` (Swagger UI) and `/redoc` (ReDoc) when server is running
-
-Key backend modules:
-
-- **`app/core/mapping.py`**: Translates UI JSON to crawl4ai objects
-- **`app/services/crawl_service.py`**: Job execution and management
-- **`app/api/jobs.py`**: Job endpoints with SSE streaming
-
-### Frontend Development
-
-The frontend uses React with TypeScript:
-
-- **Entry Point**: `frontend/src/main.tsx`
-- **Dev Server**: Vite on port 5173
-- **Build Output**: `frontend/dist/` (served by backend in production)
-
-Key frontend patterns:
-
-- **Config Generation**: `src/lib/config.ts` mirrors backend models 1:1
-- **State Management**: React hooks with context for global state
-- **Styling**: Tailwind CSS with custom utility classes
+**Dev**: FastAPI on `:8742` and Vite on `:5173` with the frontend proxying `/api`.
+**Prod**: Vite builds to `frontend/dist/`, which the backend serves from a single port.
 
 ## Architecture
 
-### Data Flow
-
 ```
-┌─────────────┐     HTTP/SSE      ┌──────────────┐     Python API      ┌──────────┐
-│   Browser   │ ◄───────────────► │   FastAPI    │ ◄─────────────────► │ Crawl4AI │
-│  (React)    │                   │   Backend    │                     │  Library │
-└─────────────┘                   └──────────────┘                     └──────────┘
-                                         │
-                                         ▼
-                              ┌─────────────────────┐
-                              │    SQLite + FS      │
-                              │  (jobs, artifacts)   │
-                              └─────────────────────┘
+┌─────────────┐   HTTP / SSE   ┌──────────────┐   Python API   ┌────────────┐
+│  Browser    │ ◄────────────► │   FastAPI    │ ◄────────────► │  Crawl4AI  │
+│  (React)    │                │   backend    │                │  library   │
+└─────────────┘                └──────┬───────┘                └────────────┘
+                                      │
+                                      ▼
+                            SQLite + filesystem
+                            (jobs, artifacts, settings)
 ```
 
-### Job Lifecycle
+**Job lifecycle**: `POST` a crawl config → get a `job_id` → open the SSE stream → backend runs the crawl and emits progress → results persist to SQLite (metadata) and `data/artifacts/` (binaries) → final result or error arrives over SSE.
 
-1. **Submit**: Client POSTs crawl configuration → receives `job_id`
-2. **Stream**: Client connects to SSE endpoint for real-time updates
-3. **Execute**: Backend runs crawl with crawl4ai, streaming progress
-4. **Store**: Results persisted to SQLite (metadata) and filesystem (artifacts)
-5. **Complete**: Client receives final result or error via SSE
+**Persistence**
 
-### Persistence Model
+| Path | Contents |
+|------|----------|
+| `data/app.db` | Job metadata, configs, schemas, profiles |
+| `data/artifacts/` | Screenshots, PDFs, MHTML, large payloads |
+| `data/settings.json` | LLM provider config and API keys (mode `0600`) |
 
-- **SQLite (`data/app.db`)**: Job metadata, configurations, schemas, settings
-- **Filesystem (`data/artifacts/`)**: Large binary content (screenshots, PDFs, MHTML)
-- **Settings (`data/settings.json`)**: User preferences, API keys (mode 0600)
+### Project layout
+
+```
+crawl4ai_webui/
+├── backend/
+│   ├── app/
+│   │   ├── api/          # REST + SSE routers
+│   │   ├── core/         # mapping.py, settings, storage, crawler pool
+│   │   ├── models/       # Pydantic schemas
+│   │   └── services/     # crawl execution and job management
+│   ├── tests/            # unit + integration
+│   └── requirements.txt
+├── frontend/
+│   └── src/
+│       ├── components/   # shared UI
+│       ├── lib/          # config definitions (mirrors backend models)
+│       └── pages/        # one per route
+├── data/                 # runtime state (gitignored)
+├── docs/                 # authoritative technical reference
+├── scripts/              # setup / dev / prod / test
+├── run.sh                # legacy all-in-one entry point
+├── Dockerfile            # container image
+└── vercel.json           # serverless split (frontend + backend services)
+```
 
 ## API Reference
 
-### Core Endpoints
+Interactive docs at `/docs` (Swagger) and `/redoc` while the server runs. Full detail in [`docs/api-reference.md`](docs/api-reference.md).
+
+**Crawls** — `POST /api/crawl`, `/api/crawl/batch`, `/api/crawl/deep`, `/api/adaptive`, `/api/seed`, `/api/ask`
+
+**Jobs**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/jobs` | Create new crawl job |
-| `GET` | `/api/jobs/{id}` | Get job details and results |
-| `GET` | `/api/jobs/{id}/stream` | SSE stream for live progress |
-| `DELETE` | `/api/jobs/{id}` | Cancel or delete job |
-| `GET` | `/api/jobs` | List jobs with pagination |
-| `POST` | `/api/jobs/{id}/rerun` | Re-run job with same config |
+| `GET` | `/api/jobs?limit=100` | List jobs (`running` flag included) |
+| `GET` | `/api/jobs/{id}` | Job metadata |
+| `GET` | `/api/jobs/{id}/results?full=true` | Result summaries or full payloads |
+| `GET` | `/api/jobs/{id}/results/{index}` | Single result |
+| `GET` | `/api/jobs/{id}/stream` | SSE progress stream |
+| `POST` | `/api/jobs/{id}/cancel` | Cancel a running job |
+| `DELETE` | `/api/jobs/{id}` | Delete a job |
+| `GET` | `/api/jobs/{id}/artifacts/{index}/{name}` | Download an artifact |
+| `GET` | `/api/jobs/{id}/export.zip` | Export the whole job |
 
-### Schemas
+**Library** — `GET`/`POST /api/schemas`, `GET`/`PUT`/`DELETE /api/schemas/{id}`, and the same set for `/api/profiles`
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/schemas` | List saved schemas |
-| `POST` | `/api/schemas` | Save new schema |
-| `GET` | `/api/schemas/{id}` | Get schema details |
-| `PUT` | `/api/schemas/{id}` | Update schema |
-| `DELETE` | `/api/schemas/{id}` | Delete schema |
-
-### Settings
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/settings` | Get current settings |
-| `POST` | `/api/settings` | Update settings |
-| `GET` | `/api/settings/profiles` | List saved profiles |
+**Other** — `POST /api/schema/generate`, `GET`/`PUT /api/settings`, `GET /api/meta`, `GET /api/health`
 
 ## Configuration
 
-### Crawl4AI Configuration
+Crawl behavior is configured per job through the UI, mapping 1:1 onto Crawl4AI objects in [`backend/app/core/mapping.py`](backend/app/core/mapping.py):
 
-The UI exposes all Crawl4AI configuration options through generated forms:
+- **BrowserConfig** — browser type (chromium/firefox/webkit), headless, viewport, user agent, JS execution, proxy, cookies, headers, stealth, storage state
+- **CrawlerRunConfig** — content filters, link filtering, screenshots, PDF/MHTML capture, timeouts, cache mode, dispatchers
+- See [`docs/configuration.md`](docs/configuration.md) for every field
 
-**BrowserConfig**:
-- Browser type (chromium, firefox, webkit)
-- Headless mode toggle
-- Viewport settings
-- User agent
-- JavaScript execution settings
-- Proxy configuration
-
-**CrawlerRunConfig**:
-- Content extraction rules
-- Link filtering patterns
-- Screenshot options
-- Timeout settings
-- Cache behavior
-
-### Environment Variables
+### Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `C4AI_HOST` | `127.0.0.1` | Server bind address |
-| `C4AI_PORT` | `8742` | Server port |
-| `C4AI_DATA_DIR` | `./data` | Data storage path |
-| `C4AI_LOG_LEVEL` | `info` | Logging verbosity |
+| `C4AI_WEBUI_DATA` | `./data` | Writable data directory (falls back to `/tmp/c4ai-webui-data`) |
+| `PORT` | `8742` | Backend port (`run.sh`) |
+| `CRAWL4_AI_BASE_DIRECTORY` | `~` | Crawl4AI's own cache/config home |
+
+> The server binds to `127.0.0.1` by default.
 
 ## LLM Integration
 
-Crawl4AI Studio supports multiple LLM providers via LiteLLM:
+Any [LiteLLM](https://docs.litellm.ai/)-compatible provider works: OpenAI, Anthropic, Google, Groq, Ollama, and custom endpoints.
 
-### Supported Providers
+Used for **schema generation** (describe the extraction in natural language), **smart filtering**, **natural-language extraction**, and **Ask** (RAG over crawled content).
 
-- OpenAI (GPT-4, GPT-3.5)
-- Anthropic (Claude)
-- Google (Gemini)
-- Groq
-- Ollama (local models)
-- Any LiteLLM-compatible endpoint
-
-### LLM-Powered Features
-
-1. **Schema Generation**: Describe what you want to extract in natural language; LLM generates CSS/XPath selectors
-2. **Smart Filtering**: LLM-based content relevance scoring
-3. **Extraction**: Natural language extraction prompts
-4. **Ask Interface**: RAG-powered Q&A over crawled content
-
-### Configuration
-
-Set your API key in Settings → LLM Provider. The key is stored locally in `data/settings.json` with restricted permissions.
+Set the provider and API key in **Settings → LLM**. Keys are stored locally in `data/settings.json` with mode `0600`.
 
 ## Testing
 
 ```bash
-# Run all tests
-bash ./run.sh test
-
-# Run specific test categories
-pytest backend/tests/unit/        # Unit tests only
-pytest backend/tests/integration/ # Integration tests only
-
-# With coverage
-pytest --cov=app --cov-report=html
+./scripts/test.sh                        # whole suite
+cd backend && .venv/bin/python -m pytest tests/unit -q         # mapping/utils
+cd backend && .venv/bin/python -m pytest tests/integration -q  # API + DB
+cd backend && .venv/bin/python -m pytest --cov=app --cov-report=html
 ```
-
-### Test Structure
-
-- **`tests/unit/`**: Mapping layer tests, utility function tests
-- **`tests/integration/`**: API endpoint tests, database tests
-- **`tests/fixtures/`**: Sample data and mock responses
 
 ## Deployment
 
-### Docker
+**Docker**
 
 ```bash
-# Build image
-docker build -t crawl4ai-webui .
-
-# Run container
-docker run -p 8742:8742 -v c4ai_data:/data crawl4ai-webui
+docker build -t crawl4ai-studio .
+docker run -p 8742:8742 -v c4ai_data:/data crawl4ai-studio
 ```
 
-Docker Compose example:
-
 ```yaml
-version: '3.8'
 services:
   crawl4ai:
     build: .
-    ports:
-      - "8742:8742"
-    volumes:
-      - c4ai_data:/data
+    ports: ["8742:8742"]
+    volumes: [c4ai_data:/data]
     environment:
-      - C4AI_LOG_LEVEL=info
+      - C4AI_WEBUI_DATA=/data
     restart: unless-stopped
-
 volumes:
   c4ai_data:
 ```
 
-### Vercel
+**Vercel** — `vercel.json` splits the app into a static Vite frontend and a container backend (`backend/Dockerfile.vercel`). Serverless hosts cap request duration and have ephemeral storage, so job history resets per instance and long crawls may time out. Use a persistent host for real workloads.
 
-A `vercel.json` configuration is included for serverless deployment. Note: Serverless environments may have limitations with long-running crawl jobs.
-
-### Self-Hosted
-
-For production deployment behind a reverse proxy:
+**Reverse proxy** — point at `127.0.0.1:8742`, keep SSE unbuffered:
 
 ```nginx
-# Nginx example
-server {
-    listen 80;
-    server_name crawl4ai.example.com;
-    
-    location / {
-        proxy_pass http://127.0.0.1:8742;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
+location / {
+    proxy_pass http://127.0.0.1:8742;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header Connection '';
+    proxy_buffering off;          # required for /api/jobs/{id}/stream
+    proxy_read_timeout 3600s;
 }
 ```
 
+See [`docs/deployment.md`](docs/deployment.md) for the full matrix.
+
 ## Security
 
-⚠️ **Important Security Considerations**:
+> **This app has no built-in authentication.** Do not expose it to untrusted networks without putting an authenticating proxy in front of it.
 
-1. **Local Binding**: By default, the server binds to `127.0.0.1` only
-2. **No Authentication**: No built-in user authentication — add reverse proxy auth for multi-user scenarios
-3. **JavaScript Execution**: Can execute arbitrary JavaScript from crawled pages in headless browser
-4. **File Access**: Can read local files via `file://` URLs
-5. **API Keys**: Stored locally in `data/settings.json` with mode 0600
-
-### Security Best Practices
-
-- Do not expose to untrusted networks without additional authentication
-- Run in isolated environment (Docker, VM)
-- Regularly update crawl4ai and Playwright dependencies
-- Review crawled URLs before execution
+- Binds to `127.0.0.1` by default; no auth, no per-user isolation
+- Crawled pages execute in a real headless browser — treat remote content as hostile
+- `file://` URLs are reachable, so the process can read local files
+- API keys sit in `data/settings.json` (mode `0600`) — protect the data directory
+- Recommended: run in Docker or a VM, keep crawl4ai and Playwright patched, and restrict outbound network access
 
 ## Troubleshooting
 
-### Common Issues
+| Symptom | Fix |
+|---------|-----|
+| `Browser not found` | `backend/.venv/bin/playwright install chromium` |
+| Port 8742 in use | `lsof -ti:8742 \| xargs kill -9` |
+| `database is locked` | Only one backend instance may run per data dir; check permissions on `data/app.db` |
+| OOM during batch crawls | Lower concurrency, enable memory-adaptive dispatching, add swap |
+| SSE stream stalls behind a proxy | Disable proxy buffering (`proxy_buffering off`) |
 
-**"Browser not found" errors**:
-```bash
-playwright install chromium
-```
+Logs go to stdout/stderr. `C4AI_LOG_LEVEL=debug ./run.sh dev` raises verbosity.
 
-**Port already in use**:
-```bash
-# Find and kill process using port 8742
-lsof -ti:8742 | xargs kill -9
-```
-
-**Database locked errors**:
-- Ensure only one backend instance is running
-- Check file permissions on `data/app.db`
-
-**Out of memory during batch crawls**:
-- Reduce concurrent workers in settings
-- Enable memory-adaptive dispatching
-- Increase system swap space
-
-### Logs
-
-Backend logs are written to stdout/stderr. Increase verbosity:
-
-```bash
-C4AI_LOG_LEVEL=debug bash ./run.sh dev
-```
-
-### Getting Help
-
-- Check the [Crawl4AI documentation](https://docs.crawl4ai.com/)
-- Review [GitHub Issues](https://github.com/unclecode/crawl4ai/issues)
-- Enable debug logging and capture output
+More help: [Crawl4AI docs](https://docs.crawl4ai.com/) · [Crawl4AI issues](https://github.com/unclecode/crawl4ai/issues) · [project docs](docs/README.md)
 
 ## Contributing
 
-Contributions are welcome! Please:
+1. Fork and branch: `git checkout -b feature/my-change`
+2. Make the change — follow existing style (ESLint/Prettier frontend, Black/PEP 8 backend)
+3. Add tests and update docs for API changes
+4. `./scripts/test.sh` must pass
+5. Commit (`feat: add ...`) and open a PR describing what changed, why, and how it was tested — screenshots for UI work
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run tests (`bash ./run.sh test`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+## Documentation
 
-### Development Guidelines
+The root README is the overview; [`docs/`](docs/README.md) is the authoritative technical reference, generated from the source.
 
-- Follow existing code style (ESLint/Prettier for frontend, Black/PEP 8 for backend)
-- Write tests for new features
-- Update documentation for API changes
-- Ensure `bash ./run.sh test` passes
+| Page | Contents |
+|------|----------|
+| [Architecture](docs/architecture.md) | System design, job lifecycle, crawler pool, SSE fan-out |
+| [User Guide](docs/user-guide.md) | Every UI page and how to use it |
+| [Configuration](docs/configuration.md) | All crawl options, dispatchers, deep crawl, seeding, adaptive |
+| [API Reference](docs/api-reference.md) | REST + SSE shapes |
+| [Data Model](docs/data-model.md) | SQLite schema, artifact layout, serialization |
+| [LLM Integration](docs/llm-integration.md) | Providers, prompts, RAG |
+| [Development](docs/development.md) | Local workflow and conventions |
+| [Deployment](docs/deployment.md) | Docker, Vercel, reverse proxy, self-hosting |
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+[MIT](LICENSE) © 2026 James
 
----
-
-Built with ❤️ using [Crawl4AI](https://github.com/unclecode/crawl4ai), [FastAPI](https://fastapi.tiangolo.com/), and [React](https://react.dev/).
+<div align="center"><sub>Built with <a href="https://github.com/unclecode/crawl4ai">Crawl4AI</a> · <a href="https://fastapi.tiangolo.com/">FastAPI</a> · <a href="https://react.dev/">React</a> · <a href="https://tailwindcss.com/">Tailwind CSS</a></sub></div>

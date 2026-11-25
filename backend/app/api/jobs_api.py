@@ -58,15 +58,14 @@ async def stream_job(job_id: str):
 
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(job_id: str):
-    if not jobs.cancel_job(job_id):
+    if not await jobs.cancel_job(job_id):
         raise HTTPException(409, "Job is not running")
     return {"ok": True}
 
 
 @router.delete("/jobs/{job_id}")
 async def delete_job(job_id: str):
-    if jobs.is_running(job_id):
-        jobs.cancel_job(job_id)
+    await jobs.cancel_job(job_id, wait=True)
     await storage.delete_job(job_id)
     return {"ok": True}
 

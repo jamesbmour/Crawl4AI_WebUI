@@ -446,11 +446,9 @@ def build_deep_crawl_strategy(req: DeepCrawlRequest):
 # ---------------------------------------------------------------------------
 
 def build_dispatcher(opts: DispatcherOptions):
-    from crawl4ai import (
-        MemoryAdaptiveDispatcher,
-        RateLimiter,
-        SemaphoreDispatcher,
-    )
+    from crawl4ai import RateLimiter
+
+    from .crawl_streams import StreamingMemoryDispatcher, StreamingSemaphoreDispatcher
 
     rate_limiter = None
     if opts.rate_limit.enabled:
@@ -460,10 +458,10 @@ def build_dispatcher(opts: DispatcherOptions):
             max_retries=opts.rate_limit.max_retries,
         )
     if opts.type == "semaphore":
-        return SemaphoreDispatcher(
+        return StreamingSemaphoreDispatcher(
             semaphore_count=opts.semaphore_count, rate_limiter=rate_limiter
         )
-    return MemoryAdaptiveDispatcher(
+    return StreamingMemoryDispatcher(
         memory_threshold_percent=opts.memory_threshold_percent,
         max_session_permit=opts.max_session_permit,
         rate_limiter=rate_limiter,
