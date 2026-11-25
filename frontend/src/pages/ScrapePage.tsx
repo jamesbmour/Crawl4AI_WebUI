@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { ArrowUpRight, FileText, Globe, Loader2, Play, SlidersHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 import { prune } from "../lib/api";
+import { CRAWL4AI_DOCS_URL } from "../lib/config";
 import { ConfigPanel } from "../components/ConfigPanel";
 import { ResultPreview } from "../components/ResultPreview";
 import { ErrorBanner, JobBar } from "../components/shared";
@@ -9,7 +10,7 @@ import { useCrawlConfig } from "../components/useCrawlConfig";
 import { useJob } from "../components/useJob";
 
 export default function ScrapePage() {
-  const [url, setUrl] = useState("https://docs.crawl4ai.com/");
+  const [url, setUrl] = useState(CRAWL4AI_DOCS_URL);
   const [config, setConfig, configReady] = useCrawlConfig();
   const [startError, setStartError] = useState<string | null>(null);
   const settings = useRef<HTMLElement>(null);

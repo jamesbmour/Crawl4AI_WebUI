@@ -1,6 +1,14 @@
 /** Declarative definitions for every crawl4ai option exposed in the UI.
  *  Group/field keys mirror the backend pydantic models 1:1. */
 
+export const CRAWL4AI_DOCS_URL = "https://docs.crawl4ai.com/";
+
+export const DEFAULT_BATCH_URLS = [
+  CRAWL4AI_DOCS_URL,
+  `${CRAWL4AI_DOCS_URL}core/quickstart/`,
+  `${CRAWL4AI_DOCS_URL}core/simple-crawling/`,
+];
+
 export type GroupId = "browser" | "page" | "content" | "markdown" | "capture" | "extraction";
 
 export type CrawlConfig = Record<GroupId, Record<string, any>>;

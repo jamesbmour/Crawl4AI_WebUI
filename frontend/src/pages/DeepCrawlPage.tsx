@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Loader2, Play, Plus, Trash2 } from "lucide-react";
 import { prune, type SlimResult } from "../lib/api";
+import { CRAWL4AI_DOCS_URL } from "../lib/config";
 import { ConfigPanel } from "../components/ConfigPanel";
 import { CrawlProgress } from "../components/CrawlProgress";
 import { useCrawlConfig } from "../components/useCrawlConfig";
@@ -29,7 +30,7 @@ const FILTER_TYPES = [
 ];
 
 export default function DeepCrawlPage() {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(CRAWL4AI_DOCS_URL);
   const [strategy, setStrategy] = useState("bfs");
   const [maxDepth, setMaxDepth] = useState(2);
   const [maxPages, setMaxPages] = useState(25);
@@ -87,7 +88,7 @@ export default function DeepCrawlPage() {
       <header>
         <h1 className="page-title">Deep crawl</h1>
         <p className="text-sm text-zinc-500">
-          Recursively follow links with BFS, DFS or Best-First strategies, URL filters and keyword scoring.
+          Follow links from a starting page and see how far the crawl reaches.
         </p>
       </header>
 
@@ -148,7 +149,7 @@ export default function DeepCrawlPage() {
             Follow external links
           </label>
         </div>
-        <div className="col-span-2 md:col-span-5">
+        <div className="col-span-full">
           <label className="label">Relevance keywords (scores links; drives Best-First ordering)</label>
           <input
             className="input"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, Loader2, Play } from "lucide-react";
 import { prune, type SlimResult } from "../lib/api";
+import { DEFAULT_BATCH_URLS } from "../lib/config";
 import { ConfigPanel } from "../components/ConfigPanel";
 import { CrawlProgress } from "../components/CrawlProgress";
 import { useCrawlConfig } from "../components/useCrawlConfig";
@@ -9,7 +10,7 @@ import { ErrorBanner, ResultsTable } from "../components/shared";
 import { useJob } from "../components/useJob";
 
 export default function BatchPage() {
-  const [urlText, setUrlText] = useState("");
+  const [urlText, setUrlText] = useState(() => DEFAULT_BATCH_URLS.join("\n"));
   const [config, setConfig, configReady] = useCrawlConfig();
   const [dispatcher, setDispatcher] = useState<Record<string, any>>({ type: "memory_adaptive" });
   const [rateLimit, setRateLimit] = useState<Record<string, any>>({ enabled: false });
@@ -53,7 +54,7 @@ export default function BatchPage() {
       <header>
         <h1 className="page-title">Batch crawl</h1>
         <p className="text-sm text-zinc-500">
-          Crawl many URLs concurrently with arun_many — adaptive dispatching, rate limiting, streaming results.
+          Crawl a list of URLs and see which pages succeed as results come in.
         </p>
       </header>
 
@@ -142,7 +143,7 @@ export default function BatchPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button className="btn-primary" onClick={run} disabled={!configReady || running || !urls.length}>
           {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
           Crawl {urls.length || ""} URL{urls.length === 1 ? "" : "s"}
