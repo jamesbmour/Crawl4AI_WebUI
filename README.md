@@ -2,6 +2,8 @@
 
 A self-hosted web interface for [Crawl4AI](https://github.com/unclecode/crawl4ai) — a Firecrawl-style playground exposing the full feature surface of the library.
 
+> 📚 **Detailed documentation** lives in [`docs/`](docs/README.md): [Architecture](docs/architecture.md) · [User Guide](docs/user-guide.md) · [Configuration](docs/configuration.md) · [API Reference](docs/api-reference.md) · [Data Model](docs/data-model.md) · [LLM Integration](docs/llm-integration.md) · [Development](docs/development.md) · [Deployment](docs/deployment.md). Those pages are generated from the actual source and are authoritative where they differ from this overview.
+
 ## Table of Contents
 
 - [Overview](#overview)
