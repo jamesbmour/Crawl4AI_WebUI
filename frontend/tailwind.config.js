@@ -6,15 +6,15 @@ export default {
     extend: {
       colors: {
         accent: {
-          DEFAULT: "#ffa180",
-          hover: "#ffb99f",
-          muted: "#59352d",
+          DEFAULT: "#f97316",
+          hover: "#fb923c",
+          muted: "#7c2d12",
         },
         surface: {
-          DEFAULT: "#10141c",
-          raised: "#171d28",
-          overlay: "#202837",
-          border: "#303a4b",
+          DEFAULT: "#0c0c0e",
+          raised: "#141417",
+          overlay: "#1c1c21",
+          border: "#27272d",
         },
       },
       fontFamily: {
