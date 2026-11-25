@@ -258,3 +258,26 @@ async def test_cancel_crawl_stops_worker_and_keeps_result(client, monkeypatch, m
     assert page_closed.is_set()
     assert (await client.get(path)).json()["completed_urls"] == 1
     assert [result["url"] for result in (await client.get(f"{path}/results")).json()] == [start_url]
+
+
+@pytest.mark.asyncio
+async def test_job_stream_recovers_results_older_than_replay_buffer(client, monkeypatch):
+    from app.core import jobs, storage
+
+    monkeypatch.setattr(jobs, "EVENT_BUFFER_MAX", 2)
+    saved = asyncio.Event()
+
+    async def runner(job_id, publish):
+        for index in range(4):
+            result = {"index": index, "url": f"https://example.test/{index}", "success": True}
+            await storage.add_result(job_id, index, result)
+            await publish(job_id, "result", {"result": storage.slim_summary(result)})
+        saved.set()
+
+    job_id = await jobs.start_job("batch", {}, runner, total_urls=4)
+    async with asyncio.timeout(2):
+        await saved.wait()
+        stream = await client.get(f"/api/jobs/{job_id}/stream")
+    events = [json.loads(line[6:]) for line in stream.text.splitlines() if line.startswith("data: ")]
+    assert [event["result"]["index"] for event in events if event["type"] == "result"] == [0, 1, 2, 3]
+    assert events[-1]["status"] == "completed"

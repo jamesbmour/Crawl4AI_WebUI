@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 _owned_pages: ContextVar[list[Page] | None] = ContextVar("crawl_worker_pages", default=None)
 
 
-async def remember_crawl_page(page, **kwargs):
+async def remember_crawl_page(page: Page, *, config, **kwargs) -> Page:
     pages = _owned_pages.get()
-    if pages is not None and not kwargs["config"].session_id:
+    if pages is not None and not config.session_id:
         pages.append(page)
     return page
 

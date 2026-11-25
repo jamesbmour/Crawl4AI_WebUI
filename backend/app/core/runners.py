@@ -33,7 +33,7 @@ async def _save_crawl_result(
 
     async def save() -> None:
         await storage.add_result(job_id, index, summary)
-        event = {"result": storage.slim_summary(summary), "completed": index + 1}
+        event: dict[str, Any] = {"result": storage.slim_summary(summary), "completed": index + 1}
         if total is not None:
             event["total"] = total
         await publish(job_id, "result", event)
