@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Download, RotateCw } from "lucide-react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, ChevronDown, Download, RotateCw } from "lucide-react";
 import { api, isTerminalJobStatus, streamJob, type SlimResult } from "../lib/api";
 import { CrawlProgress } from "../components/CrawlProgress";
 import { JsonBlock } from "../components/JsonBlock";
@@ -15,12 +15,24 @@ const RERUN_ENDPOINTS: Record<string, string> = {
   adaptive: "/adaptive",
 };
 
+const EXPORTS = [
+  ["zip", "ZIP archive", "Results and every artifact"],
+  ["md", "Markdown", "All pages in one file"],
+  ["jsonl", "JSON Lines", "One page per line"],
+  ["csv", "CSV", "Page index for spreadsheets"],
+];
+
 export default function JobDetailPage() {
   const { jobId = "" } = useParams();
   const navigate = useNavigate();
   const [job, setJob] = useState<any>(null);
   const [results, setResults] = useState<SlimResult[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [searchParams] = useSearchParams();
+  // `?result=N` deep-links to one page (used by Search and the Changes tab).
+  const [selected, setSelected] = useState<number | null>(() => {
+    const index = Number(searchParams.get("result") ?? NaN);
+    return Number.isInteger(index) ? index : null;
+  });
   const [error, setError] = useState<string | null>(null);
   const [rerunning, setRerunning] = useState(false);
   const cancellation = useJobCancellation(jobId, !!job?.running && !isTerminalJobStatus(job.status));
@@ -77,6 +89,20 @@ export default function JobDetailPage() {
 
   const showDepth = job.type === "deep" || job.type === "adaptive";
   const showProgress = job.type === "batch" || job.type === "deep";
+  const failedUrls = showProgress ? [...new Set(results.filter((r) => !r.success && r.url).map((r) => r.url))] : [];
+
+  const launch = async (path: string, payload: unknown) => {
+    setRerunning(true);
+    setError(null);
+    try {
+      const { job_id } = await api.post(path, payload);
+      navigate(`/jobs/${job_id}`);
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setRerunning(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -95,25 +121,42 @@ export default function JobDetailPage() {
           <button
             className="btn-secondary !py-1.5 text-xs"
             disabled={rerunning}
-            onClick={async () => {
-              setRerunning(true);
-              setError(null);
-              try {
-                const { job_id } = await api.post(RERUN_ENDPOINTS[job.type], job.payload);
-                navigate(`/jobs/${job_id}`);
-              } catch (error) {
-                setError((error as Error).message);
-              } finally {
-                setRerunning(false);
-              }
-            }}
+            onClick={() => launch(RERUN_ENDPOINTS[job.type], job.payload)}
           >
             <RotateCw size={14} /> Re-run
           </button>
         )}
-        <a className="btn-secondary !py-1.5 text-xs" href={`/api/jobs/${job.id}/export.zip`}>
-          <Download size={14} /> Export
-        </a>
+        {failedUrls.length > 0 && !job.running && (
+          <button
+            className="btn-secondary !py-1.5 text-xs"
+            disabled={rerunning}
+            title="Start a batch crawl of only the failed URLs with the same settings"
+            onClick={() => launch("/crawl/batch", {
+              urls: failedUrls,
+              config: job.payload.config ?? {},
+              dispatcher: job.payload.dispatcher,
+            })}
+          >
+            <RotateCw size={14} /> Retry {failedUrls.length} failed
+          </button>
+        )}
+        <details className="relative">
+          <summary className="btn-secondary cursor-pointer list-none !py-1.5 text-xs [&::-webkit-details-marker]:hidden">
+            <Download size={14} aria-hidden="true" /> Export <ChevronDown size={13} aria-hidden="true" />
+          </summary>
+          <div className="card absolute right-0 z-10 mt-1 w-60 p-1 shadow-xl shadow-black/40">
+            {EXPORTS.map(([format, label, hint]) => (
+              <a
+                key={format}
+                className="block rounded-md px-3 py-2 hover:bg-surface-overlay"
+                href={`/api/jobs/${job.id}/export.${format}`}
+              >
+                <span className="block text-sm text-zinc-100">{label}</span>
+                <span className="block text-xs text-zinc-400">{hint}</span>
+              </a>
+            ))}
+          </div>
+        </details>
       </header>
 
       <ErrorBanner message={error ?? job.error} />

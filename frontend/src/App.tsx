@@ -2,7 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { HashRouter, Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
   Braces, Bug, Compass, Globe, Layers, ListTodo, Menu,
-  MessageCircleQuestion, ScanSearch, Settings, Sparkles, X,
+  MessageCircleQuestion, ScanSearch, Search, Settings, Sparkles, X,
 } from "lucide-react";
 
 const ScrapePage = lazy(() => import("./pages/ScrapePage"));
@@ -14,6 +14,7 @@ const AdaptivePage = lazy(() => import("./pages/AdaptivePage"));
 const AskPage = lazy(() => import("./pages/AskPage"));
 const JobsPage = lazy(() => import("./pages/JobsPage"));
 const JobDetailPage = lazy(() => import("./pages/JobDetailPage"));
+const SearchPage = lazy(() => import("./pages/SearchPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
 const NAV = [
@@ -38,6 +39,7 @@ const NAV = [
     label: "Workspace",
     items: [
       { to: "/jobs", label: "Jobs", icon: ListTodo },
+      { to: "/search", label: "Search", icon: Search },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -107,6 +109,7 @@ function Studio() {
             <Route path="/ask" element={<AskPage />} />
             <Route path="/jobs" element={<JobsPage />} />
             <Route path="/jobs/:jobId" element={<JobDetailPage key={pathname} />} />
+            <Route path="/search" element={<SearchPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </Suspense>

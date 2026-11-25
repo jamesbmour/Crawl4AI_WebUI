@@ -74,13 +74,45 @@ export function ResultsTable({
   showDepth?: boolean;
 }) {
   const [page, setPage] = useState(0);
+  const [query, setQuery] = useState("");
+  const [failedOnly, setFailedOnly] = useState(false);
   const pageSize = 25;
-  const lastPage = Math.max(0, Math.ceil(results.length / pageSize) - 1);
+  const failedCount = results.reduce((count, r) => count + Number(!r.success), 0);
+  const needle = query.trim().toLowerCase();
+  const shown = results.filter(
+    (r) => (!failedOnly || !r.success) && (!needle || (r.url ?? "").toLowerCase().includes(needle))
+  );
+  const lastPage = Math.max(0, Math.ceil(shown.length / pageSize) - 1);
   const currentPage = Math.min(page, lastPage);
   const start = currentPage * pageSize;
   if (!results.length) return null;
   return (
     <div className="card">
+      {results.length > 5 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-surface-border px-3 py-2">
+          <input
+            type="search"
+            className="input max-w-xs text-xs"
+            aria-label="Filter pages by URL"
+            placeholder="Filter by URL…"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <label className="flex min-h-10 cursor-pointer items-center gap-2 text-xs text-zinc-300">
+            <input
+              type="checkbox"
+              className="accent-orange-500"
+              checked={failedOnly}
+              disabled={!failedCount && !failedOnly}
+              onChange={(event) => setFailedOnly(event.target.checked)}
+            />
+            Failed only ({failedCount})
+          </label>
+          {shown.length !== results.length && (
+            <span role="status" className="text-xs text-zinc-400">{shown.length} of {results.length} pages</span>
+          )}
+        </div>
+      )}
       <div className="table-scroll rounded-t-xl" role="region" aria-label="Crawled pages" tabIndex={0}>
         <table className={clsx("w-full text-sm", showDepth ? "min-w-[540px]" : "min-w-[400px]")}>
           <thead>
@@ -94,7 +126,14 @@ export function ResultsTable({
             </tr>
           </thead>
           <tbody>
-            {results.slice(start, start + pageSize).map((r) => (
+            {shown.length === 0 && (
+              <tr>
+                <td colSpan={showDepth ? 6 : 4} className="px-3 py-6 text-center text-sm text-zinc-400">
+                  No pages match this filter.
+                </td>
+              </tr>
+            )}
+            {shown.slice(start, start + pageSize).map((r) => (
               <tr
                 key={r.index}
                 onClick={() => onSelect?.(r)}
@@ -142,7 +181,7 @@ export function ResultsTable({
       </div>
       {lastPage > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm text-zinc-400">
-          <span>{start + 1}–{Math.min(start + pageSize, results.length)} of {results.length} pages</span>
+          <span>{start + 1}–{Math.min(start + pageSize, shown.length)} of {shown.length} pages</span>
           <div className="flex gap-2">
             <button className="btn-secondary !px-2" aria-label="Previous results page" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
               <ChevronLeft size={16} />

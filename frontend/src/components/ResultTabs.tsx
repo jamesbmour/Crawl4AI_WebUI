@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Download } from "lucide-react";
 import { CopyButton, JsonBlock } from "./JsonBlock";
-import { artifactUrl } from "../lib/api";
+import { api, artifactUrl } from "../lib/api";
+import { ErrorBanner } from "./shared";
 
 interface Props {
   result: any; // full result summary from /api/jobs/{id}/results/{index}
@@ -21,7 +22,8 @@ type TabId =
   | "screenshot"
   | "pdf"
   | "network"
-  | "ssl";
+  | "ssl"
+  | "changes";
 
 export function ResultTabs({ result, jobId }: Props) {
   const tabs = useMemo(() => {
@@ -39,6 +41,7 @@ export function ResultTabs({ result, jobId }: Props) {
     if (result.network_requests?.length || result.console_messages?.length)
       t.push({ id: "network", label: "Network / Console" });
     if (result.ssl_certificate) t.push({ id: "ssl", label: "SSL" });
+    if (result.markdown) t.push({ id: "changes", label: "Changes" });
     t.push({ id: "metadata", label: "Metadata" });
     return t;
   }, [result]);
@@ -88,6 +91,7 @@ export function ResultTabs({ result, jobId }: Props) {
         )}
         {active === "network" && <NetworkTab result={result} />}
         {active === "ssl" && <JsonBlock data={result.ssl_certificate} />}
+        {active === "changes" && <ChangesTab result={result} jobId={jobId} />}
         {active === "metadata" && <MetadataTab result={result} />}
       </div>
     </div>
@@ -293,6 +297,64 @@ function NetworkTab({ result }: { result: any }) {
         )}
       </div>
       <JsonBlock data={view === "network" ? result.network_requests : result.console_messages} />
+    </div>
+  );
+}
+
+/** Line diff of this page's markdown against the previous crawl of the same URL. */
+function ChangesTab({ result, jobId }: Props) {
+  const [data, setData] = useState<any>();
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    api.get(`/jobs/${jobId}/results/${result.index}/diff`, controller.signal)
+      .then(setData)
+      .catch((error: Error) => {
+        if (!controller.signal.aborted) setError(error.message);
+      });
+    return () => controller.abort();
+  }, [jobId, result.index]);
+
+  if (error) return <ErrorBanner message={error} />;
+  if (!data) return <p className="text-sm text-zinc-400" role="status">Comparing with the previous crawl…</p>;
+  if (!data.previous) {
+    return (
+      <p className="text-sm text-zinc-400">
+        This is the first stored crawl of this URL. Crawl it again later to see what changed.
+      </p>
+    );
+  }
+
+  const previous = (
+    <a className="text-accent hover:underline" href={`#/jobs/${data.previous.job_id}?result=${data.previous.index}`}>
+      {new Date(data.previous.created_at * 1000).toLocaleString()}
+    </a>
+  );
+  if (!data.diff.length) return <p className="text-sm text-zinc-300">No changes since the crawl on {previous}.</p>;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-zinc-300">
+        <span className="text-green-400">+{data.added} added</span>{" · "}
+        <span className="text-red-400">−{data.removed} removed</span> since the crawl on {previous}
+        {data.truncated && " (showing the first part of a long diff)"}
+      </p>
+      <div className="text-xs font-mono whitespace-pre-wrap break-words">
+        {data.diff.map((line: string, i: number) => (
+          <div
+            key={i}
+            className={
+              line.startsWith("+") ? "bg-green-500/10 text-green-300"
+                : line.startsWith("-") ? "bg-red-500/10 text-red-300"
+                : line.startsWith("@@") ? "mt-2 text-zinc-500"
+                : "text-zinc-400"
+            }
+          >
+            {line || " "}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
