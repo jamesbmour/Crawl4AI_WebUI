@@ -33,8 +33,9 @@ case "${1:-dev}" in
   setup) setup ;;
   backend) shift; backend "$@" ;;
   dev)
-    trap 'kill 0' EXIT
-    "$VENV/bin/uvicorn" app.main:app --app-dir backend --host 127.0.0.1 --port "$PORT" &
+    backend --reload --reload-dir backend/app &
+    backend_pid=$!
+    trap 'kill "$backend_pid" 2>/dev/null || true; wait "$backend_pid" 2>/dev/null || true' EXIT
     (cd frontend && npm run dev)
     ;;
   prod)

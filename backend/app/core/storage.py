@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS results (
     created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_results_job_idx ON results(job_id, idx);
+CREATE INDEX IF NOT EXISTS idx_results_url ON results(url);
 DROP INDEX IF EXISTS idx_results_job;
 CREATE TABLE IF NOT EXISTS schemas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -197,6 +198,51 @@ async def get_results(job_id: str, full: bool = True) -> list[dict[str, Any]]:
             summary = slim_summary(summary)
         out.append(summary)
     return out
+
+
+async def get_previous_result(job_id: str, index: int) -> Optional[dict[str, Any]]:
+    """Latest successful result for the same URL saved by an earlier job."""
+    db = await get_db()
+    async with db.execute(
+        """SELECT p.job_id, p.idx, p.created_at, p.summary
+           FROM results c JOIN results p
+             ON p.url = c.url AND p.success = 1 AND p.job_id != c.job_id AND p.created_at < c.created_at
+           WHERE c.job_id = ? AND c.idx = ?
+           ORDER BY p.created_at DESC LIMIT 1""",
+        (job_id, index),
+    ) as cur:
+        row = await cur.fetchone()
+    if row is None:
+        return None
+    return {
+        "job_id": row["job_id"],
+        "index": row["idx"],
+        "created_at": row["created_at"],
+        "summary": json.loads(row["summary"]),
+    }
+
+
+async def search_results(query: str, limit: int = 50) -> list[dict[str, Any]]:
+    """Case-insensitive substring search over stored page markdown and URLs."""
+    db = await get_db()
+    # ponytail: full scan that parses every stored summary; move markdown into an
+    # FTS5 table if the library grows past a few thousand pages.
+    async with db.execute(
+        """SELECT job_id, idx AS "index", url, created_at, pos > 0 AS in_content,
+                  substr(md, max(1, pos - 80), 240) AS snippet
+           FROM (
+               SELECT job_id, idx, url, created_at, md, instr(lower(md), lower(:q)) AS pos
+               FROM (
+                   SELECT job_id, idx, url, created_at,
+                          COALESCE(json_extract(summary, '$.markdown'), '') AS md
+                   FROM results
+               )
+           )
+           WHERE pos > 0 OR instr(lower(COALESCE(url, '')), lower(:q)) > 0
+           ORDER BY created_at DESC LIMIT :limit""",
+        {"q": query, "limit": limit},
+    ) as cur:
+        return [dict(row) for row in await cur.fetchall()]
 
 
 def slim_summary(summary: dict[str, Any]) -> dict[str, Any]:

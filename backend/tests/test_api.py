@@ -281,3 +281,37 @@ async def test_job_stream_recovers_results_older_than_replay_buffer(client, monk
     events = [json.loads(line[6:]) for line in stream.text.splitlines() if line.startswith("data: ")]
     assert [event["result"]["index"] for event in events if event["type"] == "result"] == [0, 1, 2, 3]
     assert events[-1]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_search_diff_and_exports(client):
+    from app.core import storage
+
+    url = "https://example.test/pricing"
+    old_job = await storage.create_job("scrape", {"url": url})
+    await storage.add_result(old_job, 0, {"index": 0, "url": url, "success": True, "markdown": "Plans\nBasic $5"})
+    new_job = await storage.create_job("batch", {"urls": [url]})
+    await storage.add_result(new_job, 0, {
+        "index": 0, "url": url, "success": True, "markdown": "Plans\nBasic $9 Zebracorn",
+        "metadata": {"title": "=HYPERLINK(1)"},
+    })
+    await storage.add_result(new_job, 1, {"index": 1, "url": "https://example.test/down", "success": False})
+
+    hits = (await client.get("/api/search", params={"q": "zebracorn"})).json()
+    assert [(h["job_id"], h["index"], h["in_content"]) for h in hits] == [(new_job, 0, 1)]
+    assert "Zebracorn" in hits[0]["snippet"]
+    assert (await client.get("/api/search", params={"q": "x"})).status_code == 422
+
+    diff = (await client.get(f"/api/jobs/{new_job}/results/0/diff")).json()
+    assert diff["previous"]["job_id"] == old_job
+    assert (diff["added"], diff["removed"]) == (1, 1)
+    assert "+Basic $9 Zebracorn" in diff["diff"]
+    assert (await client.get(f"/api/jobs/{old_job}/results/0/diff")).json() == {"previous": None}
+
+    export = f"/api/jobs/{new_job}/export"
+    assert f"> Source: {url}" in (await client.get(f"{export}.md")).text
+    rows = [json.loads(line) for line in (await client.get(f"{export}.jsonl")).text.splitlines()]
+    assert [row["success"] for row in rows] == [True, False]
+    assert "'=HYPERLINK(1)" in (await client.get(f"{export}.csv")).text
+    assert (await client.get(f"{export}.exe")).status_code == 422
+    assert (await client.get(f"{export}.zip")).headers["content-type"] == "application/zip"
