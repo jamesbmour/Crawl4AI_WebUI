@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { CircleHelp } from "lucide-react";
 import CodeMirror from "@uiw/react-codemirror";
 import { javascript } from "@codemirror/lang-javascript";
@@ -93,23 +93,7 @@ export function Field({ def, value, onChange }: Props) {
         </Wrap>
       );
     case "list":
-      return (
-        <Wrap def={def}>
-          <input
-            type="text"
-            className="input"
-            placeholder={def.placeholder ?? "comma, separated, values"}
-            value={Array.isArray(value) ? value.join(", ") : (value ?? "")}
-            onChange={(e) => {
-              const parts = e.target.value
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean);
-              onChange(parts.length ? parts : undefined);
-            }}
-          />
-        </Wrap>
-      );
+      return <ListField def={def} value={value} onChange={onChange} />;
     case "json":
       return <JsonField def={def} value={value} onChange={onChange} />;
     case "code":
@@ -162,6 +146,47 @@ function HelpTooltip({ label, text }: { label: string; text: string }) {
         {text}
       </span>
     </span>
+  );
+}
+
+/** Comma-separated list editor. Keeps raw keystrokes in local state so typing
+ *  a trailing "," or " " isn't immediately erased by re-deriving the display
+ *  string from the parsed/trimmed array on every render (the array can't
+ *  represent "nav, " while the second item is still empty). Only commits
+ *  `onChange` with the parsed array, and only re-syncs from `value` when it
+ *  changes for reasons other than our own commit (reset, loaded profile). */
+function ListField({ def, value, onChange }: Props) {
+  const toText = (v: any) => (Array.isArray(v) ? v.join(", ") : "");
+  const [text, setText] = useState<string>(toText(value));
+  const lastCommitted = useRef<any>(value);
+
+  useEffect(() => {
+    if (value !== lastCommitted.current) {
+      setText(toText(value));
+      lastCommitted.current = value;
+    }
+  }, [value]);
+
+  return (
+    <Wrap def={def}>
+      <input
+        type="text"
+        className="input"
+        placeholder={def.placeholder ?? "comma, separated, values"}
+        value={text}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setText(raw);
+          const parts = raw
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const next = parts.length ? parts : undefined;
+          lastCommitted.current = next;
+          onChange(next);
+        }}
+      />
+    </Wrap>
   );
 }
 
