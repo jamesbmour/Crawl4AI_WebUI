@@ -15,7 +15,7 @@ The sidebar (from `App.tsx`):
   Sparkles  Adaptive       /adaptive    information-foraging crawl
   ?         Ask            /ask         Q&A over crawled content
   ListTodo  Jobs           /jobs        history + live progress
-  Settings  Settings       /settings    LLM provider + profiles
+  Settings  Settings       /settings    LLM provider + crawl presets
 ```
 
 Routing is **hash-based** (`/#/batch`, etc.), so URLs are shareable and reloads work when the
@@ -25,8 +25,8 @@ app is served statically.
 
 ## Scrape (`/`)
 
-The single-URL playground. Enter a URL, expand the **config accordion** (Browser / Page /
-Content / Markdown / Capture / Extraction — see [configuration.md](configuration.md)), and run.
+The single-URL playground. Enter a URL, adjust the [crawl settings](#crawl-settings) if needed,
+and run.
 Progress streams live; results open in the tabbed viewer.
 
 Typical uses: dialing in a configuration before scaling it up to a batch, one-off extractions,
@@ -37,7 +37,8 @@ capturing a screenshot/PDF, or inspecting exactly what crawl4ai returns for a pa
 ## Batch crawl (`/batch`)
 
 Paste a list of URLs (one per line) and run them through `arun_many()`. Beyond the shared
-config, this page exposes the **dispatcher**:
+[crawl settings](#crawl-settings), the **Batch options** set the dispatcher (remembered between
+visits):
 
 - **Memory-adaptive** — scales concurrency with available RAM (`max_session_permit`,
   `memory_threshold_percent`).
@@ -57,9 +58,33 @@ Recursively follow links from a start URL. Choose a **strategy**:
 - **DFS** — depth-first; dive down one path before backtracking.
 - **Best-First** — a priority queue ordered by URL score (needs `keywords` to score usefully).
 
-Bound the crawl with `max_depth` and `max_pages`, keep it on-site (`include_external=false`),
-and shape it with a **filter chain** (URL pattern, domain allow/block, content type, content
-relevance, SEO) and an optional **keyword scorer**. Each result carries its `depth` and `score`.
+Bound the crawl with `max_depth` and `max_pages` (25 in the UI), keep it on-site
+(`include_external=false`), and shape it with a **filter chain** (URL pattern, domain allow/block,
+content type, content relevance, SEO) and an optional **keyword scorer**. These **Deep crawl
+options** and filters are remembered between visits. Each result carries its `depth` and `score`.
+
+---
+
+## Crawl settings
+
+Scrape, Batch crawl and Deep crawl share one **Crawl settings** panel (Browser / Page interaction /
+Content selection / Markdown / Capture & cache / Extraction — see
+[configuration.md](configuration.md)). It is the same set of settings on all three pages, so a
+change on one page is already in place on the others.
+
+- **Saved automatically** — every change is stored as your default (`default_crawl_config`), with
+  a *Saving… / Saved* indicator. There is no separate save step.
+- **Every setting explains itself** — each field shows a one-line description, and unset fields
+  show crawl4ai's default (toggle state, `(default)` option, or placeholder).
+- **Find and review changes** — search by name or description, or press **Changed** to list only
+  the settings that differ from the defaults. Changed settings have an orange edge; each has a
+  reset button, and **Reset all** goes back to the defaults (with **Undo**).
+- **Presets** — save the current settings under a name and apply them later from the **Presets**
+  menu. Saving with an existing name updates that preset. Applying one replaces the current
+  settings (with **Undo**). Presets hold the shared settings only, not Batch or Deep options.
+- **Per crawl type** — settings that don't apply to a crawl type are hidden there and not sent:
+  *Session ID* and *Reuse page without reloading* are Scrape only, and *Drop internal links* is
+  not used by deep crawls (they need internal links to find pages).
 
 ---
 
@@ -160,14 +185,14 @@ around the match and opens the job with that page selected.
   `anthropic/claude-3-5-sonnet`, `ollama/llama3`), API token, optional base URL, temperature,
   and max tokens. The token is stored masked and never returned in full. See
   [llm-integration.md](llm-integration.md).
-- **Profiles** — save the current crawl config as a named preset and load it later.
+- **Crawl presets** — review (as JSON) or delete the presets saved from the Crawl settings panel.
 
 ---
 
 ## Tips
 
-- **Iterate on Scrape, then scale on Batch/Deep** — the config object is identical across all
-  three, so a working single-URL config drops straight into a batch.
+- **Iterate on Scrape, then scale on Batch/Deep** — the crawl settings are shared, so a config
+  that works on one page is already active on Batch and Deep.
 - **Save schemas once** — build a CSS/XPath schema in Extraction, save it, then reference its
   `schema_id` from any crawl instead of re-pasting.
 - **Watch for `422`** — an invalid config (e.g. BM25 filter with no query, LLM feature with no

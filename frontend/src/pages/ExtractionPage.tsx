@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Play, Save, Sparkles, Trash2 } from "lucide-react";
 import { api, prune } from "../lib/api";
 import { ExtractionEditor, SchemaJsonEditor } from "../components/ExtractionEditor";
-import { useCrawlConfig } from "../components/useCrawlConfig";
+import { useCrawlSettings } from "../components/useCrawlSettings";
 import { ErrorBanner, JobBar } from "../components/shared";
 import { JsonBlock } from "../components/JsonBlock";
 import { useJob } from "../components/useJob";
@@ -12,7 +12,7 @@ export default function ExtractionPage() {
   const [extraction, setExtraction] = useState<Record<string, any>>({ type: "css" });
   const [extracted, setExtracted] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [crawlConfig, , configReady] = useCrawlConfig();
+  const { settings: { config: crawlConfig }, ready: configReady } = useCrawlSettings();
   const job = useJob();
 
   // Schema generation

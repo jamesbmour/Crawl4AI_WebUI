@@ -21,7 +21,7 @@
 - **Visual configuration** — no Python needed; every `BrowserConfig` / `CrawlerRunConfig` option has a form field
 - **Live progress** — Server-Sent Events stream crawl status as it happens
 - **Persistent jobs** — results land in SQLite + filesystem; revisit, re-run, or export to ZIP
-- **Reusable schemas** — save, version and reuse extraction schemas, plus settings profiles
+- **Reusable schemas** — save, version and reuse extraction schemas, plus crawl-settings presets
 - **Optional LLM layer** — schema generation, smart filtering, and RAG Q&A over crawled content
 
 ## Features

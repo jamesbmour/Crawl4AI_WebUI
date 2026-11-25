@@ -337,7 +337,8 @@ Named presets of the shared crawl `config`.
 | `PUT` | `/api/profiles/{id}` | Same body → `{ ok: true }` |
 | `DELETE` | `/api/profiles/{id}` | `{ ok: true }` |
 
-`config` is stored with `exclude_none`, so only set fields persist.
+`config` is stored with `exclude_none` and by alias (the inline extraction schema stays under
+`extraction.schema`), so only set fields persist.
 
 ---
 
@@ -348,15 +349,20 @@ Returns settings with the API token **masked** and a computed `llm_configured` f
 ```json
 { "llm_provider": "openai/gpt-4o-mini", "llm_api_token": "********abcd",
   "llm_base_url": "", "llm_temperature": null, "llm_max_tokens": null,
-  "default_crawl_config": null, "llm_configured": true }
+  "default_crawl_config": null, "batch_options": null, "deep_options": null,
+  "llm_configured": true }
 ```
 
 ### `PUT /api/settings`
 ```json
 { "llm_provider": "openai/gpt-4o-mini", "llm_api_token": "sk-…",
   "llm_base_url": "", "llm_temperature": 0.2, "llm_max_tokens": 2048,
-  "default_crawl_config": { … } }
+  "default_crawl_config": { … }, "batch_options": { … }, "deep_options": { … } }
 ```
+`default_crawl_config`, `batch_options` (a `dispatcher` object) and `deep_options` (the deep-crawl
+fields without `url`/`config`) are what the crawl pages auto-save. They are validated like crawl
+requests but stored with only the fields that were sent, so defaults are never written back.
+
 Semantics:
 - Fields sent as `null`/omitted are **not** changed.
 - An **empty string** clears a value.

@@ -45,6 +45,8 @@ _DEFAULTS: dict[str, Any] = {
     "llm_temperature": None,
     "llm_max_tokens": None,
     "default_crawl_config": None,
+    "batch_options": None,
+    "deep_options": None,
 }
 
 

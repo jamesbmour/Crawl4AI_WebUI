@@ -200,8 +200,8 @@ class DeepFilterSpec(BaseModel):
     keywords: Optional[list[str]] = None
 
 
-class DeepCrawlRequest(BaseModel):
-    url: str
+class DeepCrawlOptions(BaseModel):
+    """Deep-crawl knobs; also what Settings remembers for the Deep crawl page."""
     strategy: Literal["bfs", "dfs", "best_first"] = "bfs"
     max_depth: int = 2
     max_pages: Optional[int] = 50
@@ -210,6 +210,10 @@ class DeepCrawlRequest(BaseModel):
     keywords: Optional[list[str]] = None  # KeywordRelevanceScorer
     keyword_weight: float = 0.7
     filters: list[DeepFilterSpec] = Field(default_factory=list)
+
+
+class DeepCrawlRequest(DeepCrawlOptions):
+    url: str
     config: CrawlConfigPayload = Field(default_factory=CrawlConfigPayload)
 
 
@@ -273,3 +277,5 @@ class SettingsIn(BaseModel):
     llm_temperature: Optional[float] = None
     llm_max_tokens: Optional[int] = None
     default_crawl_config: Optional[CrawlConfigPayload] = None
+    batch_options: Optional[DispatcherOptions] = None
+    deep_options: Optional[DeepCrawlOptions] = None

@@ -111,7 +111,7 @@ markdown field is set, crawl4ai's default generator is used.
 |-------|------|-------|
 | `content_source` | `"cleaned_html" \| "raw_html" \| "fit_html"` | Which HTML feeds the generator |
 | `content_filter` | `"none" \| "pruning" \| "bm25" \| "llm"` | Filter strategy (below) |
-| `ignore_links` / `ignore_images` / `escape_html` / `skip_internal_links` | bool | html2text generator options |
+| `ignore_links` / `ignore_images` / `skip_internal_links` | bool | html2text generator options (`escape_html` is accepted but has no effect in crawl4ai 0.7.x, so the UI omits it) |
 | `body_width` | int | Wrap width (0 = no wrap) |
 
 **Content filters:**
@@ -218,7 +218,7 @@ Top-level fields of `POST /api/crawl/deep` (in addition to the shared `config`).
 |-------|---------|-------|
 | `strategy` | `"bfs"` | `"bfs" \| "dfs" \| "best_first"` |
 | `max_depth` | `2` | Link-following depth |
-| `max_pages` | `50` | `null` = unlimited |
+| `max_pages` | `50` | `null` = unlimited; the UI sends 25 unless changed |
 | `include_external` | `false` | Follow off-site links |
 | `score_threshold` | `null` | Min URL score (bfs/dfs only; **ignored** for best_first) |
 | `keywords` | `null` | Enables a `KeywordRelevanceScorer` |

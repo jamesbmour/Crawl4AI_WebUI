@@ -75,7 +75,7 @@ crawl4ai_webui/
 │   │   ├── App.tsx            router + sidebar
 │   │   ├── main.tsx           React root
 │   │   ├── lib/               api.ts, config.ts
-│   │   ├── components/        ConfigPanel, ExtractionEditor, ResultTabs, Field, shared, useCrawlConfig, useJob
+│   │   ├── components/        ConfigPanel, ExtractionEditor, ResultTabs, Field, shared, useCrawlSettings, useJob
 │   │   └── pages/             one per route
 │   ├── vite.config.ts         dev server + /api proxy
 │   ├── tailwind.config.js
@@ -103,9 +103,11 @@ crawl4ai_webui/
 
 ## Frontend conventions
 
-- **`lib/config.ts` is the single source for the config UI.** It declares `CONFIG_GROUPS` as
-  data; `ConfigPanel.tsx` renders forms from it. Keep it aligned with `models/schemas.py` when
-  adding options.
+- **`lib/config.ts` is the single source for the config UI.** It declares `CONFIG_GROUPS` (plus
+  the Batch/Deep option lists) as data; `ConfigPanel.tsx` and `FieldList` render forms from it.
+  Give every field a `help` sentence and, when crawl4ai has one, its `default`; mark fields that
+  only make sense for some crawl types with `modes`. Keep it aligned with `models/schemas.py`
+  when adding options.
 - **`prune()` before POST.** Strip empty values so payloads carry only what the user set.
 - **`streamJob()`** wraps `EventSource` and auto-closes on a terminal `status` event.
 

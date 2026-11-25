@@ -145,11 +145,12 @@ export default function SettingsPage() {
       </div>
 
       <div className="card p-5 space-y-3">
-        <h3 className="text-sm font-semibold text-zinc-200">Config profiles</h3>
-        <p className="text-xs text-zinc-500">
-          Saved from the Configuration panel on any crawl page; apply them via the “Apply profile” dropdown.
+        <h3 className="text-sm font-semibold text-zinc-200">Crawl presets</h3>
+        <p className="text-xs text-zinc-400">
+          Named copies of the crawl settings. Save and apply them from the Presets menu in Crawl settings on
+          Scrape, Batch crawl or Deep crawl.
         </p>
-        {profiles.length === 0 && <p className="text-sm text-zinc-500">No profiles saved yet.</p>}
+        {profiles.length === 0 && <p className="text-sm text-zinc-400">No presets saved yet.</p>}
         {profiles.map((p) => (
           <div key={p.id} className="rounded-lg border border-surface-border">
             <div className="flex items-center gap-2 px-3 py-2">
@@ -159,6 +160,7 @@ export default function SettingsPage() {
               <span className="text-xs text-zinc-600">{new Date(p.updated_at * 1000).toLocaleDateString()}</span>
               <button
                 className="btn-ghost !p-1.5 text-red-400 ml-auto"
+                aria-label={`Delete preset ${p.name}`}
                 onClick={async () => {
                   await api.delete(`/profiles/${p.id}`);
                   setProfiles(await api.get("/profiles"));

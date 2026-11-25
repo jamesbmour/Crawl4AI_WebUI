@@ -17,7 +17,9 @@ async def get_settings():
 
 @router.put("/settings")
 async def put_settings(body: SettingsIn):
-    update = body.model_dump(exclude_none=True)
+    # exclude_unset keeps saved crawl options to what the user changed, so the UI
+    # can tell edits from defaults; by_alias keeps the extraction `schema` key.
+    update = body.model_dump(exclude_none=True, exclude_unset=True, by_alias=True)
     # Empty string clears a value; masked token placeholder means "keep".
     token = update.get("llm_api_token")
     if token and token.startswith("********"):

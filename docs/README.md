@@ -42,7 +42,7 @@ Open **http://localhost:5173**.
 - **Adaptive** — information-foraging crawl that stops once it has learned enough about a query.
 - **Ask** — RAG-style Q&A chat over a finished job or an ad-hoc URL.
 - **Jobs** — full history with live progress, stored artifacts, and ZIP export.
-- **Settings** — LLM provider config and saved crawl-config profiles.
+- **Settings** — LLM provider config and saved crawl presets.
 
 ## Tech stack at a glance
 

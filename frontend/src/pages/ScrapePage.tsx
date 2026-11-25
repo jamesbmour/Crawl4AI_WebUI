@@ -6,24 +6,24 @@ import { CRAWL4AI_DOCS_URL } from "../lib/config";
 import { ConfigPanel } from "../components/ConfigPanel";
 import { ResultPreview } from "../components/ResultPreview";
 import { ErrorBanner, JobBar } from "../components/shared";
-import { useCrawlConfig } from "../components/useCrawlConfig";
+import { useCrawlSettings } from "../components/useCrawlSettings";
 import { useJob } from "../components/useJob";
 
 export default function ScrapePage() {
   const [url, setUrl] = useState(CRAWL4AI_DOCS_URL);
-  const [config, setConfig, configReady] = useCrawlConfig();
+  const { settings, ready } = useCrawlSettings();
   const [startError, setStartError] = useState<string | null>(null);
-  const settings = useRef<HTMLElement>(null);
+  const settingsRef = useRef<HTMLElement>(null);
   const job = useJob();
   const running = job.status === "running" || job.status === "queued";
-  const canRun = configReady && !running && !!url.trim();
+  const canRun = ready && !running && !!url.trim();
 
   const run = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canRun) return;
     setStartError(null);
     try {
-      await job.start("/crawl", { url: url.trim(), config: prune(config) ?? {} });
+      await job.start("/crawl", { url: url.trim(), config: prune(settings.config) ?? {} });
     } catch (error) {
       setStartError((error as Error).message);
     }
@@ -41,8 +41,8 @@ export default function ScrapePage() {
         </Link>
       </header>
 
-      <div className="scrape-workspace">
-        <section className="scrape-request card min-w-0 p-4 sm:p-5" aria-label="Crawl request">
+      <div className="crawl-workspace">
+        <section className="crawl-request card min-w-0 p-4 sm:p-5" aria-label="Crawl request">
           <form onSubmit={run}>
             <label className="label" htmlFor="scrape-url">Page URL</label>
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -70,7 +70,7 @@ export default function ScrapePage() {
               <p className="py-2 text-xs text-zinc-400" id="scrape-url-help">
                 Supports web URLs, <code>raw:</code> and <code>file://</code>.
               </p>
-              <button type="button" className="btn-ghost !px-2 text-xs xl:hidden" onClick={() => settings.current?.focus()}>
+              <button type="button" className="btn-ghost !px-2 text-xs xl:hidden" onClick={() => settingsRef.current?.focus()}>
                 <SlidersHorizontal size={14} aria-hidden="true" /> Crawl settings
               </button>
             </div>
@@ -81,7 +81,7 @@ export default function ScrapePage() {
           </div>
         </section>
 
-        <section className="scrape-output min-w-0 space-y-2" aria-labelledby="scrape-output-title">
+        <section className="crawl-output min-w-0 space-y-2" aria-labelledby="scrape-output-title">
           <h2 id="scrape-output-title" className="text-base font-semibold text-zinc-100">Output</h2>
           {job.jobId && job.results.length > 0 ? (
             <ResultPreview jobId={job.jobId} index={0} />
@@ -97,8 +97,8 @@ export default function ScrapePage() {
           )}
         </section>
 
-        <section ref={settings} tabIndex={-1} className="scrape-options min-w-0 scroll-mt-4" aria-label="Crawl settings">
-          <ConfigPanel config={config} onChange={setConfig} />
+        <section ref={settingsRef} tabIndex={-1} className="crawl-options min-w-0 scroll-mt-4" aria-label="Crawl settings">
+          <ConfigPanel mode="scrape" />
         </section>
       </div>
     </div>

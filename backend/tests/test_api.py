@@ -72,6 +72,32 @@ async def test_default_crawl_config_roundtrip(client):
 
 
 @pytest.mark.asyncio
+async def test_crawl_type_options_roundtrip(client):
+    batch = {"type": "semaphore", "semaphore_count": 3, "rate_limit": {"enabled": True}}
+    deep = {"max_depth": 3, "filters": [{"type": "url_pattern", "patterns": ["*/docs/*"]}]}
+    r = await client.put("/api/settings", json={"batch_options": batch, "deep_options": deep})
+    assert r.status_code == 200
+    # Only what the user set is stored, so the UI can tell edits from defaults.
+    assert r.json()["batch_options"] == batch
+    assert r.json()["deep_options"] == deep
+
+    r = await client.put("/api/settings", json={"deep_options": {"strategy": "sideways"}})
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_saved_configs_keep_inline_extraction_schema(client):
+    schema = {"name": "items", "baseSelector": "li", "fields": []}
+    config = {"extraction": {"type": "css", "schema": schema}}
+    r = await client.put("/api/settings", json={"default_crawl_config": config})
+    assert r.json()["default_crawl_config"]["extraction"]["schema"] == schema
+
+    r = await client.post("/api/profiles", json={"name": "items", "config": config})
+    r = await client.get(f"/api/profiles/{r.json()['id']}")
+    assert r.json()["config"]["extraction"]["schema"] == schema
+
+
+@pytest.mark.asyncio
 async def test_schema_crud(client):
     payload = {
         "name": "products",

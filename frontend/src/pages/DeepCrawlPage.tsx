@@ -1,318 +1,157 @@
-import { useState } from "react";
-import { Loader2, Play, Plus, Trash2 } from "lucide-react";
+import { useRef, useState, type FormEvent } from "react";
+import { Bug, Loader2, Play, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import { prune, type SlimResult } from "../lib/api";
-import { CRAWL4AI_DOCS_URL } from "../lib/config";
+import { CRAWL4AI_DOCS_URL, DEEP_FIELDS, FILTER_FIELDS, FILTER_TYPES, configForMode, withDefaults } from "../lib/config";
 import { ConfigPanel } from "../components/ConfigPanel";
 import { CrawlProgress } from "../components/CrawlProgress";
-import { useCrawlConfig } from "../components/useCrawlConfig";
+import { FieldList } from "../components/Field";
 import { ResultPreview } from "../components/ResultPreview";
 import { ErrorBanner, ResultsTable } from "../components/shared";
+import { updateSettings, useCrawlSettings } from "../components/useCrawlSettings";
 import { useJob } from "../components/useJob";
 
-interface FilterRow {
-  type: string;
-  patterns?: string;
-  allowed_domains?: string;
-  blocked_domains?: string;
-  allowed_types?: string;
-  query?: string;
-  threshold?: number;
-  keywords?: string;
-  reverse?: boolean;
-}
-
-const FILTER_TYPES = [
-  { value: "url_pattern", label: "URL pattern" },
-  { value: "domain", label: "Domain allow/block" },
-  { value: "content_type", label: "Content type" },
-  { value: "content_relevance", label: "Content relevance (BM25 on <head>)" },
-  { value: "seo", label: "SEO quality" },
-];
+type Filter = Record<string, any>;
 
 export default function DeepCrawlPage() {
   const [url, setUrl] = useState(CRAWL4AI_DOCS_URL);
-  const [strategy, setStrategy] = useState("bfs");
-  const [maxDepth, setMaxDepth] = useState(2);
-  const [maxPages, setMaxPages] = useState(25);
-  const [includeExternal, setIncludeExternal] = useState(false);
-  const [scoreThreshold, setScoreThreshold] = useState<string>("");
-  const [keywords, setKeywords] = useState("");
-  const [filters, setFilters] = useState<FilterRow[]>([]);
-  const [config, setConfig, configReady] = useCrawlConfig();
+  const { settings, ready } = useCrawlSettings();
   const [selected, setSelected] = useState<SlimResult | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
+  const settingsRef = useRef<HTMLElement>(null);
   const job = useJob();
+  const deep = settings.deep;
+  const filters: Filter[] = deep.filters ?? [];
+  const running = job.status === "running" || job.status === "queued";
+  const canRun = ready && !running && !!url.trim();
 
-  const toList = (s?: string) =>
-    s
-      ?.split(",")
-      .map((x) => x.trim())
-      .filter(Boolean);
+  const setFilters = (next: Filter[]) => updateSettings({ deep: { ...deep, filters: next.length ? next : undefined } });
+  const setFilter = (index: number, next: Filter) => setFilters(filters.map((f, i) => (i === index ? next : f)));
 
-  const run = async () => {
-    if (!configReady || !url.trim()) return;
+  const run = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canRun) return;
     setStartError(null);
     setSelected(null);
-    const payload = {
-      url: url.trim(),
-      strategy,
-      max_depth: maxDepth,
-      max_pages: maxPages || undefined,
-      include_external: includeExternal,
-      score_threshold: scoreThreshold === "" ? undefined : Number(scoreThreshold),
-      keywords: toList(keywords),
-      filters: filters.map((f) => ({
-        type: f.type,
-        patterns: toList(f.patterns),
-        allowed_domains: toList(f.allowed_domains),
-        blocked_domains: toList(f.blocked_domains),
-        allowed_types: toList(f.allowed_types),
-        query: f.query || undefined,
-        threshold: f.threshold,
-        keywords: toList(f.keywords),
-        reverse: f.reverse,
-      })),
-      config: prune(config) ?? {},
-    };
     try {
-      await job.start("/crawl/deep", payload);
-    } catch (e: any) {
-      setStartError(e.message);
+      await job.start(
+        "/crawl/deep",
+        prune({ url: url.trim(), ...withDefaults(DEEP_FIELDS, deep), filters, config: configForMode(settings.config, "deep") })
+      );
+    } catch (e) {
+      setStartError((e as Error).message);
     }
   };
 
-  const running = job.status === "running" || job.status === "queued";
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-5 sm:space-y-7">
       <header>
         <h1 className="page-title">Deep crawl</h1>
-        <p className="text-sm text-zinc-500">
-          Follow links from a starting page and see how far the crawl reaches.
-        </p>
+        <p className="text-sm">Follow links from a starting page and see how far the crawl reaches.</p>
       </header>
 
-      <div className="flex gap-2">
-        <input
-          className="input text-base"
-          placeholder="https://docs.example.com"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !running && run()}
-        />
-        <button className="btn-primary shrink-0" onClick={run} disabled={!configReady || running || !url.trim()}>
-          {running ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-          Crawl
-        </button>
-      </div>
-
-      <ErrorBanner message={startError ?? job.error} />
-      <CrawlProgress kind="deep" {...job} onCancel={job.cancel} />
-
-      <div className="card p-4 grid grid-cols-1 min-[420px]:grid-cols-2 xl:grid-cols-5 gap-4">
-        <div>
-          <label className="label">Strategy</label>
-          <select className="input" value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-            <option value="bfs">BFS — breadth first</option>
-            <option value="dfs">DFS — depth first</option>
-            <option value="best_first">Best-first (scored)</option>
-          </select>
-        </div>
-        <div>
-          <label className="label">Max depth</label>
-          <input type="number" className="input" value={maxDepth} min={0} onChange={(e) => setMaxDepth(Number(e.target.value))} />
-        </div>
-        <div>
-          <label className="label">Max pages</label>
-          <input type="number" className="input" value={maxPages} min={1} onChange={(e) => setMaxPages(Number(e.target.value))} />
-        </div>
-        <div>
-          <label className="label">Score threshold</label>
-          <input
-            type="number"
-            step={0.05}
-            className="input"
-            placeholder="(none)"
-            value={scoreThreshold}
-            onChange={(e) => setScoreThreshold(e.target.value)}
-            disabled={strategy === "best_first"}
-          />
-        </div>
-        <div className="flex items-end pb-2">
-          <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-            <input
-              type="checkbox"
-              className="accent-orange-500"
-              checked={includeExternal}
-              onChange={(e) => setIncludeExternal(e.target.checked)}
-            />
-            Follow external links
-          </label>
-        </div>
-        <div className="col-span-full">
-          <label className="label">Relevance keywords (scores links; drives Best-First ordering)</label>
-          <input
-            className="input"
-            placeholder="python, async, tutorial"
-            value={keywords}
-            onChange={(e) => setKeywords(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="card p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-200">URL filters</h3>
-          <button
-            className="btn-ghost !px-2 !py-1 text-xs"
-            onClick={() => setFilters([...filters, { type: "url_pattern" }])}
-          >
-            <Plus size={14} /> Add filter
-          </button>
-        </div>
-        {filters.length === 0 && <p className="text-xs text-zinc-500">No filters — all discovered URLs are eligible.</p>}
-        {filters.map((f, i) => (
-          <div key={i} className="flex flex-wrap items-end gap-3 rounded-lg border border-surface-border p-3">
-            <div className="w-48">
-              <label className="label">Type</label>
-              <select
-                className="input"
-                value={f.type}
-                onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { type: e.target.value } : x)))}
-              >
-                {FILTER_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+      <div className="crawl-workspace">
+        <section className="crawl-request card min-w-0 space-y-5 p-4 sm:p-5" aria-label="Deep crawl request">
+          <form onSubmit={run}>
+            <label className="label" htmlFor="deep-url">Start URL</label>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <input
+                id="deep-url"
+                className="input h-11 font-mono text-base"
+                inputMode="url"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="https://docs.example.com"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+              <button type="submit" className="btn-primary h-11 whitespace-nowrap" disabled={!canRun}>
+                {running ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+                {running ? "Crawling…" : "Run deep crawl"}
+              </button>
             </div>
-            {f.type === "url_pattern" && (
-              <>
-                <div className="flex-1 basis-[220px] min-w-0">
-                  <label className="label">Glob patterns (comma separated)</label>
-                  <input
-                    className="input"
-                    placeholder="*/docs/*, *.html"
-                    value={f.patterns ?? ""}
-                    onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, patterns: e.target.value } : x)))}
-                  />
-                </div>
-                <label className="flex items-center gap-2 text-xs text-zinc-400 pb-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="accent-orange-500"
-                    checked={!!f.reverse}
-                    onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, reverse: e.target.checked } : x)))}
-                  />
-                  Exclude matches
-                </label>
-              </>
-            )}
-            {f.type === "domain" && (
-              <>
-                <div className="flex-1 basis-[180px] min-w-0">
-                  <label className="label">Allowed domains</label>
-                  <input
-                    className="input"
-                    placeholder="docs.example.com"
-                    value={f.allowed_domains ?? ""}
-                    onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, allowed_domains: e.target.value } : x)))}
-                  />
-                </div>
-                <div className="flex-1 basis-[180px] min-w-0">
-                  <label className="label">Blocked domains</label>
-                  <input
-                    className="input"
-                    placeholder="ads.example.com"
-                    value={f.blocked_domains ?? ""}
-                    onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, blocked_domains: e.target.value } : x)))}
-                  />
-                </div>
-              </>
-            )}
-            {f.type === "content_type" && (
-              <div className="flex-1 basis-[220px] min-w-0">
-                <label className="label">Allowed MIME types</label>
-                <input
-                  className="input"
-                  placeholder="text/html, application/pdf"
-                  value={f.allowed_types ?? ""}
-                  onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, allowed_types: e.target.value } : x)))}
-                />
+            <div className="mt-2 flex justify-end xl:hidden">
+              <button type="button" className="btn-ghost !px-2 text-xs" onClick={() => settingsRef.current?.focus()}>
+                <SlidersHorizontal size={14} aria-hidden="true" /> Crawl settings
+              </button>
+            </div>
+          </form>
+
+          <section className="config-panel border-t border-surface-border pt-4" aria-labelledby="deep-options-title">
+            <h2 id="deep-options-title" className="text-sm font-semibold text-zinc-100">Deep crawl options</h2>
+            <p className="text-xs text-zinc-400">How far the crawl goes and which links it visits first. Only used by deep crawls; saved automatically.</p>
+            <FieldList fields={DEEP_FIELDS} values={deep} onChange={(next) => updateSettings({ deep: next })} />
+          </section>
+
+          <section className="space-y-3 border-t border-surface-border pt-4" aria-labelledby="deep-filters-title">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 id="deep-filters-title" className="text-sm font-semibold text-zinc-100">URL filters</h2>
+                <p className="text-xs text-zinc-400">A discovered link is crawled only if it passes every filter.</p>
               </div>
-            )}
-            {f.type === "content_relevance" && (
-              <>
-                <div className="flex-1 basis-[220px] min-w-0">
-                  <label className="label">Query</label>
-                  <input
-                    className="input"
-                    placeholder="machine learning tutorials"
-                    value={f.query ?? ""}
-                    onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, query: e.target.value } : x)))}
-                  />
+              <button type="button" className="btn-ghost !px-2 text-xs" onClick={() => setFilters([...filters, { type: "url_pattern" }])}>
+                <Plus size={14} aria-hidden="true" /> Add filter
+              </button>
+            </div>
+            {filters.length === 0 && <p className="text-xs text-zinc-400">No filters: every discovered link is eligible.</p>}
+            {filters.map((filter, i) => (
+              <div key={i} className="config-panel rounded-lg border border-surface-border p-3">
+                <div className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    <label className="label" htmlFor={`deep-filter-${i}`}>Filter {i + 1}</label>
+                    <select
+                      id={`deep-filter-${i}`}
+                      aria-describedby={`deep-filter-${i}-help`}
+                      className="input"
+                      value={filter.type}
+                      // A different filter type takes different fields, so start it fresh.
+                      onChange={(e) => setFilter(i, { type: e.target.value })}
+                    >
+                      {FILTER_TYPES.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-ghost !p-2 text-red-400"
+                    aria-label={`Remove filter ${i + 1}`}
+                    onClick={() => setFilters(filters.filter((_, j) => j !== i))}
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                  </button>
                 </div>
-                <div className="w-28">
-                  <label className="label">Threshold</label>
-                  <input
-                    type="number"
-                    step={0.05}
-                    className="input"
-                    placeholder="0.7"
-                    value={f.threshold ?? ""}
-                    onChange={(e) =>
-                      setFilters(
-                        filters.map((x, j) =>
-                          j === i ? { ...x, threshold: e.target.value === "" ? undefined : Number(e.target.value) } : x
-                        )
-                      )
-                    }
-                  />
-                </div>
-              </>
-            )}
-            {f.type === "seo" && (
-              <>
-                <div className="flex-1 basis-[180px] min-w-0">
-                  <label className="label">Keywords</label>
-                  <input
-                    className="input"
-                    placeholder="crawler, scraping"
-                    value={f.keywords ?? ""}
-                    onChange={(e) => setFilters(filters.map((x, j) => (j === i ? { ...x, keywords: e.target.value } : x)))}
-                  />
-                </div>
-                <div className="w-28">
-                  <label className="label">Threshold</label>
-                  <input
-                    type="number"
-                    step={0.05}
-                    className="input"
-                    placeholder="0.5"
-                    value={f.threshold ?? ""}
-                    onChange={(e) =>
-                      setFilters(
-                        filters.map((x, j) =>
-                          j === i ? { ...x, threshold: e.target.value === "" ? undefined : Number(e.target.value) } : x
-                        )
-                      )
-                    }
-                  />
-                </div>
-              </>
-            )}
-            <button className="btn-ghost !p-2 text-red-400 ml-auto" onClick={() => setFilters(filters.filter((_, j) => j !== i))}>
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ))}
+                <p id={`deep-filter-${i}-help`} className="mt-1.5 text-xs text-zinc-400">
+                  {FILTER_TYPES.find((t) => t.value === filter.type)?.help}
+                </p>
+                <FieldList fields={FILTER_FIELDS} values={filter} onChange={(next) => setFilter(i, next)} />
+              </div>
+            ))}
+          </section>
+
+          <ErrorBanner message={startError ?? job.error} />
+        </section>
+
+        <section className="crawl-output min-w-0 space-y-4" aria-label="Results">
+          <CrawlProgress kind="deep" {...job} onCancel={job.cancel} />
+          {job.status === "idle" && (
+            <div className="card flex min-h-40 flex-col items-center justify-center gap-3 p-5 text-center">
+              <span className="grid h-10 w-10 place-items-center rounded-lg bg-surface-overlay text-accent">
+                <Bug size={20} aria-hidden="true" />
+              </span>
+              <p className="text-sm text-zinc-400">Run a deep crawl to see every page it reaches here.</p>
+            </div>
+          )}
+          <ResultsTable key={job.jobId} results={job.results} onSelect={setSelected} selected={selected?.index ?? null} showDepth />
+          {selected && job.jobId && <ResultPreview jobId={job.jobId} index={selected.index} />}
+        </section>
+
+        <section ref={settingsRef} tabIndex={-1} className="crawl-options min-w-0 scroll-mt-4" aria-label="Crawl settings">
+          <ConfigPanel mode="deep" />
+        </section>
       </div>
-
-      <ConfigPanel config={config} onChange={setConfig} />
-
-      <ResultsTable key={job.jobId} results={job.results} onSelect={setSelected} selected={selected?.index ?? null} showDepth />
-      {selected && job.jobId && <ResultPreview jobId={job.jobId} index={selected.index} />}
     </div>
   );
 }

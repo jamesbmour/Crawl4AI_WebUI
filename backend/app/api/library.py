@@ -54,7 +54,7 @@ async def list_profiles():
 @router.post("/profiles")
 async def create_profile(body: ProfileIn):
     profile_id = await storage.create_profile(
-        body.name, body.description, body.config.model_dump(mode="json", exclude_none=True)
+        body.name, body.description, body.config.model_dump(mode="json", exclude_none=True, by_alias=True)
     )
     return {"id": profile_id}
 
@@ -72,7 +72,7 @@ async def update_profile(profile_id: int, body: ProfileIn):
     if await storage.get_profile(profile_id) is None:
         raise HTTPException(404, "Profile not found")
     await storage.update_profile(
-        profile_id, body.name, body.description, body.config.model_dump(mode="json", exclude_none=True)
+        profile_id, body.name, body.description, body.config.model_dump(mode="json", exclude_none=True, by_alias=True)
     )
     return {"ok": True}
 

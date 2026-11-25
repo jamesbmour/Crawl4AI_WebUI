@@ -160,11 +160,11 @@ frontend/src/
 │   ├── api.ts              # fetch wrapper, ApiError, streamJob() (EventSource), prune()
 │   └── config.ts           # Declarative CONFIG_GROUPS — mirrors backend models 1:1
 ├── components/
-│   ├── ConfigPanel.tsx     # Renders the shared config accordion from config.ts
+│   ├── ConfigPanel.tsx     # Shared crawl settings panel: search, changed filter, presets
 │   ├── ExtractionEditor.tsx# CSS/XPath/regex/LLM extraction builder
 │   ├── ResultTabs.tsx      # Tabbed result viewer (markdown, html, links, media, …)
 │   ├── Field.tsx / shared.tsx  # Form primitives
-│   ├── useCrawlConfig.ts   # Config state hook
+│   ├── useCrawlSettings.ts # App-wide crawl settings store, auto-saved to /api/settings
 │   └── useJob.ts           # Job submit + SSE subscription hook
 └── pages/                  # One component per route (see user-guide.md)
 ```
