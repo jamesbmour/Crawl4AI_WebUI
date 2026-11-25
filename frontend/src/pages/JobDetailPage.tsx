@@ -150,6 +150,7 @@ export default function JobDetailPage() {
                 key={format}
                 className="block rounded-md px-3 py-2 hover:bg-surface-overlay"
                 href={`/api/jobs/${job.id}/export.${format}`}
+                onClick={(event) => event.currentTarget.closest("details")?.removeAttribute("open")}
               >
                 <span className="block text-sm text-zinc-100">{label}</span>
                 <span className="block text-xs text-zinc-400">{hint}</span>
