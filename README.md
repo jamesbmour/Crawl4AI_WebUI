@@ -42,10 +42,11 @@
 - **Formats**: markdown (raw + filtered), cleaned/raw HTML, links, media, tables, metadata (OG, Twitter, JSON-LD)
 - **Capture**: screenshots (full page, viewport, element), PDF, MHTML, network and console logs, SSL cert details
 - **Ask interface**: RAG-style Q&A over any page or finished job (`POST /api/ask`)
+- **Library**: full-text search across every stored page, change detection against the previous crawl of a URL, and whole-job export as ZIP, Markdown, JSON Lines or CSV
 
 ### UI pages
 
-`/` scrape · `/batch` · `/deep` · `/discovery` · `/extraction` · `/adaptive` · `/ask` · `/jobs` · `/settings`
+`/` scrape · `/batch` · `/deep` · `/discovery` · `/extraction` · `/adaptive` · `/ask` · `/jobs` · `/search` · `/settings`
 
 ## Quick Start
 

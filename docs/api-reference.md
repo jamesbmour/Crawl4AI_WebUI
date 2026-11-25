@@ -29,11 +29,14 @@ port `8742`.
 | `GET` | `/api/jobs/{id}` | Job detail |
 | `GET` | `/api/jobs/{id}/results` | All result summaries for a job |
 | `GET` | `/api/jobs/{id}/results/{index}` | One result by index |
+| `GET` | `/api/jobs/{id}/results/{index}/diff` | Markdown diff against the previous crawl of the same URL |
+| `GET` | `/api/search?q=` | Search stored pages by content or URL |
 | `GET` | `/api/jobs/{id}/stream` | SSE live progress stream |
 | `POST` | `/api/jobs/{id}/cancel` | Cancel a running job |
 | `DELETE` | `/api/jobs/{id}` | Delete a job (and its artifacts) |
 | `GET` | `/api/jobs/{id}/artifacts/{index}/{name}` | Download one artifact |
 | `GET` | `/api/jobs/{id}/export.zip` | Export a whole job as a ZIP |
+| `GET` | `/api/jobs/{id}/export.{md,jsonl,csv}` | Export a whole job as one file |
 | `GET` | `/api/schemas` · `POST` · `GET/PUT/DELETE /{id}` | Schema library CRUD |
 | `GET` | `/api/profiles` · `POST` · `GET/PUT/DELETE /{id}` | Config profile CRUD |
 | `GET` | `/api/settings` · `PUT /api/settings` | App/LLM settings |
@@ -275,6 +278,36 @@ attachment` header. Paths are validated against traversal; unknown files return 
 ### `GET /api/jobs/{id}/export.zip`
 A ZIP containing `job.json`, `results.json` (full), and every artifact file under the job
 directory. `Content-Disposition: attachment; filename="crawl_<id>.zip"`.
+
+### `GET /api/jobs/{id}/export.{md|jsonl|csv}`
+The whole job as a single download:
+
+- `md` — every page's markdown in one file, each preceded by a `> Source: <url>` line.
+- `jsonl` — one JSON object per page (`url`, `title`, `success`, `status_code`, `depth`,
+  `score`, `markdown`, `extracted_content`, `metadata`).
+- `csv` — a page index (`index`, `url`, `success`, `status_code`, `depth`, `score`, `title`,
+  `markdown_length`, `error_message`). Text cells that start with a formula character are
+  prefixed with `'` so crawled content cannot run as a spreadsheet formula.
+
+Any other extension returns `422`.
+
+### `GET /api/jobs/{id}/results/{index}/diff`
+Compares the page's markdown with the most recent successful result for the same URL from an
+earlier job. Returns `{ "previous": null }` when the URL has not been crawled before, otherwise:
+```json
+{
+  "previous": { "job_id": "…", "index": 0, "created_at": 1720000000.0 },
+  "added": 3, "removed": 1,
+  "diff": ["@@ -1,7 +1,9 @@", " # Pricing", "-Basic plan: $5", "+Basic plan: $9"],
+  "truncated": false
+}
+```
+`diff` holds unified-diff lines, capped at 2,000 (`truncated` is then `true`).
+
+### `GET /api/search?q=<text>&limit=50`
+Case-insensitive substring search over the markdown and URL of every stored page, newest first.
+`q` needs 2–200 characters; `limit` is 1–200. Each hit: `job_id`, `index`, `url`, `created_at`,
+`in_content` (`0` when only the URL matched) and a `snippet` around the first match.
 
 ---
 

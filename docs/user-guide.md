@@ -117,7 +117,8 @@ Requires an LLM provider (Settings). Uses `litellm` under the hood.
 
 **Jobs** lists every run newest-first, with type, status, URL counts, and a live `running`
 indicator. Row actions: **cancel** a running job, **export** the whole job as a ZIP, or
-**delete** it (also removes its artifacts).
+**delete** it (also removes its artifacts). Filter the list by URL or job ID, status and type;
+tick rows to **delete several jobs at once** (only the jobs currently listed are deleted).
 
 **Job detail** shows the full result set in the tabbed viewer (`ResultTabs.tsx`), typically
 including:
@@ -130,9 +131,26 @@ including:
 - **Extracted** — structured output from the extraction strategy.
 - **Metadata** — Open Graph, Twitter cards, JSON-LD, response headers, SSL certificate.
 - **Artifacts** — screenshot, PDF, MHTML, network/console logs (download links).
+- **Changes** — a line diff of the markdown against the previous crawl of the same URL, so a
+  re-run shows what changed on the page.
+
+The header also offers:
+
+- **Export** — the whole job as a ZIP, one combined Markdown file, JSON Lines, or a CSV index.
+- **Retry failed** (batch and deep jobs) — starts a new batch crawl of only the URLs that
+  failed, with the same settings.
+
+Result tables with more than five pages can be filtered by URL or narrowed to failed pages.
 
 A finished job can be re-opened any time; results replay from SQLite even after the server
 restarts.
+
+---
+
+## Search (`/search`)
+
+Finds text in every page stored by any job — page content or URL. Each hit shows a snippet
+around the match and opens the job with that page selected.
 
 ---
 
