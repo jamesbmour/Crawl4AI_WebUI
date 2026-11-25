@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import tempfile
+from collections import Counter
 
 import pytest
 
@@ -205,7 +206,7 @@ async def test_cancel_while_job_is_starting(client, monkeypatch):
 async def test_cancel_crawl_stops_worker_and_keeps_result(client, monkeypatch, mode):
     from crawl4ai import CrawlResult
     from app.core import runners
-    from app.core.crawl_streams import remember_crawl_page
+    from app.core.crawl_attempts import remember_crawl_page
 
     start_url = "https://example.test/start"
     slow_url = "https://example.test/slow"
@@ -258,6 +259,55 @@ async def test_cancel_crawl_stops_worker_and_keeps_result(client, monkeypatch, m
     assert page_closed.is_set()
     assert (await client.get(path)).json()["completed_urls"] == 1
     assert [result["url"] for result in (await client.get(f"{path}/results")).json()] == [start_url]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["scrape", "memory_adaptive", "semaphore", "bfs", "dfs", "best_first"])
+async def test_crawl_retries_before_saving_results(client, monkeypatch, mode):
+    from crawl4ai import CrawlResult
+    from app.core import runners
+
+    root = "https://example.test/start"
+    child = "https://example.test/child"
+    missing = "https://example.test/missing"
+    attempts = Counter()
+
+    class FixtureCrawler:
+        async def arun(self, url, config, **kwargs):
+            attempts[url] += 1
+            if url == root and attempts[url] == 1:
+                raise TimeoutError("Navigation timed out")
+            # Crawl4AI 0.7 can mark HTTP error bodies as successful.
+            status = 404 if url == missing else 500 if url == child and attempts[url] == 1 else 200
+            return CrawlResult(
+                url=url, html="<p>Example</p>", success=True, status_code=status,
+                links={"internal": [{"href": child}]} if url == root else {},
+            )
+
+    async def get_crawler(*args):
+        return FixtureCrawler()
+
+    monkeypatch.setattr(runners, "get_crawler", get_crawler)
+    expected = {root: (True, 200)}
+    if mode == "scrape":
+        response = await client.post("/api/crawl", json={"url": root})
+    elif mode in ("memory_adaptive", "semaphore"):
+        response = await client.post(
+            "/api/crawl/batch", json={"urls": [root, child, missing], "dispatcher": {"type": mode}},
+        )
+        expected.update({child: (True, 200), missing: (False, 404)})
+    else:
+        response = await client.post("/api/crawl/deep", json={"url": root, "strategy": mode, "max_pages": 2})
+        expected[child] = (True, 200)
+    assert response.status_code == 200
+    path = f"/api/jobs/{response.json()['job_id']}"
+    async with asyncio.timeout(5):
+        stream = await client.get(f"{path}/stream")
+    assert '"status": "completed"' in stream.text
+    results = (await client.get(f"{path}/results")).json()
+    assert len(results) == len(expected)
+    assert {row["url"]: (row["success"], row["status_code"]) for row in results} == expected
+    assert attempts == {url: 2 if success else 1 for url, (success, _) in expected.items()}
 
 
 @pytest.mark.asyncio

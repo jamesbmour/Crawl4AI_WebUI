@@ -25,7 +25,7 @@ _lock = asyncio.Lock()
 async def get_crawler(opts: Optional[BrowserOptions] = None) -> AsyncWebCrawler:
     from crawl4ai import AsyncWebCrawler
 
-    from .crawl_streams import remember_crawl_page
+    from .crawl_attempts import reject_http_error, remember_crawl_page
 
     opts = opts or BrowserOptions()
     key = browser_config_signature(opts)
@@ -38,6 +38,7 @@ async def get_crawler(opts: Optional[BrowserOptions] = None) -> AsyncWebCrawler:
         crawler = AsyncWebCrawler(config=config)
         if not config.use_managed_browser:
             crawler.crawler_strategy.set_hook("on_page_context_created", remember_crawl_page)
+        crawler.crawler_strategy.set_hook("after_goto", reject_http_error)
         try:
             await crawler.start()
         except asyncio.CancelledError:

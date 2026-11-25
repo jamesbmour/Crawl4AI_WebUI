@@ -446,13 +446,12 @@ def build_deep_crawl_strategy(req: DeepCrawlRequest):
 # ---------------------------------------------------------------------------
 
 def build_dispatcher(opts: DispatcherOptions):
-    from crawl4ai import RateLimiter
-
+    from .crawl_attempts import PacedRateLimiter
     from .crawl_streams import StreamingMemoryDispatcher, StreamingSemaphoreDispatcher
 
     rate_limiter = None
     if opts.rate_limit.enabled:
-        rate_limiter = RateLimiter(
+        rate_limiter = PacedRateLimiter(
             base_delay=(opts.rate_limit.base_delay_min, opts.rate_limit.base_delay_max),
             max_delay=opts.rate_limit.max_delay,
             max_retries=opts.rate_limit.max_retries,

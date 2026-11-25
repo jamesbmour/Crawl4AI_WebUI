@@ -2,45 +2,27 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from contextlib import aclosing
-from contextvars import ContextVar
-from typing import TYPE_CHECKING
 
-from crawl4ai import MemoryAdaptiveDispatcher, RateLimiter, SemaphoreDispatcher
+from crawl4ai import MemoryAdaptiveDispatcher, SemaphoreDispatcher
 
-if TYPE_CHECKING:
-    from playwright.async_api import Page
+from .crawl_attempts import PacedRateLimiter, RetryingCrawler
 
-_owned_pages: ContextVar[list[Page] | None] = ContextVar("crawl_worker_pages", default=None)
-
-
-async def remember_crawl_page(page: Page, *, config, **kwargs) -> Page:
-    pages = _owned_pages.get()
-    if pages is not None and not config.session_id:
-        pages.append(page)
-    return page
-
-
-class _PageTrackedWorker:
-    async def crawl_url(self, *args, **kwargs):
-        pages = []
-        token = _owned_pages.set(pages)
-        try:
-            return await super().crawl_url(*args, **kwargs)
-        except asyncio.CancelledError:
-            # Cancelling an await does not necessarily close the browser navigation.
-            await asyncio.gather(*(page.close() for page in pages), return_exceptions=True)
-            raise
-        finally:
-            _owned_pages.reset(token)
-
-
-class StreamingMemoryDispatcher(_PageTrackedWorker, MemoryAdaptiveDispatcher):
+class StreamingMemoryDispatcher(MemoryAdaptiveDispatcher):
     def __init__(self, **options):
         super().__init__(**options)
         self._workers: set[asyncio.Task] = set()
         self._stopped = False
+        self._next_queue_refresh = time.monotonic() + self.fairness_timeout
+
+    async def _update_queue_priorities(self):
+        # Until a URL ages past fairness_timeout, its priority only depends on
+        # its retry count, which is already recorded when it enters the queue.
+        if self.monitor or time.monotonic() >= self._next_queue_refresh:
+            self._next_queue_refresh = time.monotonic() + self.check_interval
+            await super()._update_queue_priorities()
 
     async def crawl_url(self, *args, **kwargs):
         if self._stopped:
@@ -61,7 +43,7 @@ class StreamingMemoryDispatcher(_PageTrackedWorker, MemoryAdaptiveDispatcher):
         await asyncio.gather(*workers, return_exceptions=True)
 
 
-class StreamingSemaphoreDispatcher(_PageTrackedWorker, SemaphoreDispatcher):
+class StreamingSemaphoreDispatcher(SemaphoreDispatcher):
     async def run_urls_stream(self, urls, crawler, config):
         self.crawler = crawler
         semaphore = asyncio.Semaphore(self.semaphore_count)
@@ -81,13 +63,25 @@ class StreamingSemaphoreDispatcher(_PageTrackedWorker, SemaphoreDispatcher):
 
 async def stream_results(crawler, urls, config, dispatcher):
     """Close the dispatcher generator and its workers before leaving a crawl."""
+    limiter = dispatcher.rate_limiter
+    # Apply pacing inside the worker so it covers each attempt, including retries.
+    dispatcher.rate_limiter = None
+    retrying = RetryingCrawler(crawler, limiter)
     try:
-        async with aclosing(dispatcher.run_urls_stream(urls=urls, crawler=crawler, config=config)) as stream:
-            async for item in stream:
-                yield item.result
+        async with aclosing(dispatcher.run_urls_stream(urls=urls, crawler=retrying, config=config)) as stream:
+            pending = asyncio.create_task(anext(stream, None))
+            try:
+                while (item := await pending) is not None:
+                    # Keep dispatching while the caller saves the previous result.
+                    pending = asyncio.create_task(anext(stream, None))
+                    yield item.result
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
     finally:
         if isinstance(dispatcher, StreamingMemoryDispatcher):
             await dispatcher.stop()
+        dispatcher.rate_limiter = limiter
 
 
 class DeepCrawlStreams:
@@ -96,13 +90,11 @@ class DeepCrawlStreams:
     def __init__(self, crawler):
         self._crawler = crawler
         self._stream = None
+        self._rate_limiter = PacedRateLimiter(base_delay=(0.1, 0.2), max_delay=60.0, max_retries=3)
 
     async def arun_many(self, urls, config):
         await self.close()
-        # Match the default rate limiter used by AsyncWebCrawler.arun_many.
-        dispatcher = StreamingMemoryDispatcher(
-            rate_limiter=RateLimiter(base_delay=(1.0, 3.0), max_delay=60.0, max_retries=3)
-        )
+        dispatcher = StreamingMemoryDispatcher(rate_limiter=self._rate_limiter)
         self._stream = stream_results(self._crawler, urls, config, dispatcher)
         return self._stream
 

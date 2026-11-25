@@ -29,37 +29,35 @@ Publish = Callable[..., Awaitable[None]]
 async def _save_crawl_result(
     result, job_id: str, index: int, publish: Publish, total: Optional[int] = None
 ) -> bool:
-    summary = serialize_result(result, job_id, index)
-
-    async def save() -> None:
+    async def save() -> bool:
+        summary = await asyncio.to_thread(serialize_result, result, job_id, index)
         await storage.add_result(job_id, index, summary)
         event: dict[str, Any] = {"result": storage.slim_summary(summary), "completed": index + 1}
         if total is not None:
             event["total"] = total
         await publish(job_id, "result", event)
+        return summary["success"]
 
     # A stop can interrupt navigation immediately; finish saving a page already returned.
     pending = asyncio.create_task(save())
     try:
-        await asyncio.shield(pending)
+        return await asyncio.shield(pending)
     except asyncio.CancelledError:
         await pending
         raise
-    return summary["success"]
 
 
 def make_single_crawl_runner(req: CrawlRequest, resolved_schema: Optional[dict] = None):
     async def runner(job_id: str, publish: Publish) -> None:
+        from .crawl_attempts import RetryingCrawler
+
         llm = get_llm_config()
         config = build_crawler_config(req.config, llm, resolved_schema)
         crawler = await get_crawler(req.config.browser)
         await publish(job_id, "progress", {"message": f"Crawling {req.url}"})
-        result = await crawler.arun(req.url, config=config)
-        summary = serialize_result(result, job_id, 0)
-        await storage.add_result(job_id, 0, summary)
-        await publish(job_id, "result", {"result": storage.slim_summary(summary)})
-        if not summary["success"]:
-            raise RuntimeError(summary.get("error_message") or "Crawl failed")
+        result = await RetryingCrawler(crawler).arun(req.url, config=config)
+        if not await _save_crawl_result(result, job_id, 0, publish, total=1):
+            raise RuntimeError(result.error_message or "Crawl failed")
 
     return runner
 
@@ -94,6 +92,10 @@ def make_deep_crawl_runner(req: DeepCrawlRequest, resolved_schema: Optional[dict
 
         llm = get_llm_config()
         strategy = build_deep_crawl_strategy(req)
+        page_limit = req.max_pages
+        if page_limit is not None and page_limit > 0 and req.strategy in ("bfs", "best_first"):
+            # Crawl4AI 0.7 breaks before yielding the page that reaches its limit.
+            strategy.max_pages += 1
         config = build_crawler_config(req.config, llm, resolved_schema, stream=True)
         crawler = await get_crawler(req.config.browser)
         await publish(
@@ -102,17 +104,24 @@ def make_deep_crawl_runner(req: DeepCrawlRequest, resolved_schema: Optional[dict
             {"message": f"Deep crawl ({req.strategy}) from {req.url}, depth ≤ {req.max_depth}"},
         )
         index = 0
+        successes = 0
         streams = DeepCrawlStreams(crawler)
         try:
             async with aclosing(await strategy.arun(start_url=req.url, crawler=streams, config=config)) as results:
                 async for result in results:
-                    await _save_crawl_result(result, job_id, index, publish)
+                    success = await _save_crawl_result(result, job_id, index, publish)
                     index += 1
+                    if success:
+                        successes += 1
+                        if page_limit is not None and successes >= page_limit:
+                            break
         finally:
             await streams.close()
             await strategy.shutdown()
         if index == 0:
             raise RuntimeError("Deep crawl produced no pages")
+        if successes == 0:
+            raise RuntimeError("All pages failed to crawl")
 
     return runner
 
